@@ -1,0 +1,2 @@
+codible: codible.c
+	$(CC) codible.c -o codible -Wall -Wextra -pedantic -std=c17
