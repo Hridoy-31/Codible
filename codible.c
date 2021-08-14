@@ -1,17 +1,35 @@
+/*** includes ***/
+
 #include <ctype.h> // iscntrl() resides in it
-#include <stdio.h> // printf() resides in it
-#include <stdlib.h> // atexit() resides in it 
+#include <stdio.h> // printf(), perror() reside in it
+#include <stdlib.h> // atexit(), exit() reside in it 
 #include <termios.h> // struct termios, tcgetattr(), tcsetattr(), ECHO, TCSAFLUSH, ICANON, ISIG, IXON. IEXTEN, ICRNL, OPOST, BRKINT, INPCK, ISTRIP, CS8, VMIN, VTIME reside in it
 #include <unistd.h> // read(), STDIN_FILENO reside in it
+#include <errno.h> // errno, EAGAIN reside in it
+
+/*** data ***/
 
 struct termios original;
 
+/*** terminal ***/
+
+void die(const char *s) {
+  perror(s); // returns error messages from errno global variable
+  exit(1);
+}
+
 void disableRawMode() {
-  tcsetattr(STDIN_FILENO, TCSAFLUSH, &original); // setting up original terminal attributes
+  // error checking for setting up
+  if (tcsetattr(STDIN_FILENO, TCSAFLUSH, &original) == -1) {
+    die("tcsetattr");
+  }
 }
 
 void enableRawMode() {
-  tcgetattr(STDIN_FILENO, &original); // collecting terminal attributes
+  // error checking for loading up
+  if (tcgetattr(STDIN_FILENO, &original) == -1) {
+    die("tcgetattr");
+  }
   atexit(disableRawMode); 
 
   struct termios raw = original;
@@ -21,8 +39,13 @@ void enableRawMode() {
   raw.c_lflag &= ~(ECHO | ICANON | IEXTEN | ISIG); // ICANON used for reading input byte by byte & ISIG used to ignore SIGINT and SIGTSTP, IEXTEN used to disable Ctrl-o and Ctrl-V
   raw.c_cc[VMIN] = 0; // control characters for terminal settings
   raw.c_cc[VTIME] = 1; // control characters for terminal settings
-  tcsetattr(STDIN_FILENO, TCSAFLUSH, &raw); // Setting up modified terminal attributes
+  // error checking for setting up raw mode
+  if (tcsetattr(STDIN_FILENO, TCSAFLUSH, &raw) == -1) {
+    die("tcsetattr");
+  }
 }
+
+/*** initialization ***/
 
 int main()
 {
@@ -30,7 +53,10 @@ int main()
   char c;
   while (1) {
     char c = '\0';
-    read(STDIN_FILENO, &c, 1);
+    // marking EAGAIN as safe (for Cygwin)
+    if (read(STDIN_FILENO, &c, 1) == -1 && errno != EAGAIN) {
+      die("read");
+    }
     if (iscntrl(c)) // check it's printable or not
     {
       printf("%d\r\n", c); // Just the ASCII value
