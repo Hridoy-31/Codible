@@ -7,6 +7,10 @@
 #include <unistd.h> // read(), STDIN_FILENO reside in it
 #include <errno.h> // errno, EAGAIN reside in it
 
+/*** defines ***/
+
+#define CTRL_KEY(k) ((k) & 0x1f)
+
 /*** data ***/
 
 struct termios original;
@@ -64,7 +68,7 @@ int main()
     else {
       printf("%d ('%c')\r\n", c, c); // ASCII value & the corresponding character
     }
-    if (c == 'q') // checking 'q' for quit
+    if (c == CTRL_KEY('q')) // checking 'q' for quit
     {
       break;
     }
