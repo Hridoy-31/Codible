@@ -49,6 +49,30 @@ void enableRawMode() {
   }
 }
 
+char editorReadKey() {
+  // read the keypress
+  int nread;
+  char c;
+  while ((nread = read(STDIN_FILENO, &c, 1)) != 1) {
+    if (nread == -1 && errno != EAGAIN) {
+      die("read");
+    }
+    return c;
+  }
+}
+
+/*** input ***/
+
+void editorProcessKeypress() {
+  // process the keypress
+  char c = editorReadKey();
+  switch (c) {
+  case CTRL_KEY('q'):
+    exit(0);
+    break;
+  }
+}
+
 /*** initialization ***/
 
 int main()
@@ -56,6 +80,7 @@ int main()
   enableRawMode();
   char c;
   while (1) {
+    editorProcessKeypress();
     char c = '\0';
     // marking EAGAIN as safe (for Cygwin)
     if (read(STDIN_FILENO, &c, 1) == -1 && errno != EAGAIN) {
