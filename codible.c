@@ -4,7 +4,7 @@
 #include <stdio.h> // printf(), perror() reside in it
 #include <stdlib.h> // atexit(), exit() reside in it 
 #include <termios.h> // struct termios, tcgetattr(), tcsetattr(), ECHO, TCSAFLUSH, ICANON, ISIG, IXON. IEXTEN, ICRNL, OPOST, BRKINT, INPCK, ISTRIP, CS8, VMIN, VTIME reside in it
-#include <unistd.h> // read(), STDIN_FILENO reside in it
+#include <unistd.h> // read(), STDIN_FILENO, write(), STDOUT_FILENO reside in it
 #include <errno.h> // errno, EAGAIN reside in it
 
 /*** defines ***/
@@ -61,6 +61,14 @@ char editorReadKey() {
   }
 }
 
+/*** output ***/
+
+void editorRefreshScreen() {
+  write(STDOUT_FILENO, "\x1b[2J", 4); // writing 4 bytes to the terminal
+  // [2J escape sequence used for clearing the full screen
+  // VT100 escape sequences will be followed
+}
+
 /*** input ***/
 
 void editorProcessKeypress() {
@@ -80,6 +88,7 @@ int main()
   enableRawMode();
   char c;
   while (1) {
+    editorRefreshScreen();
     editorProcessKeypress();
     char c = '\0';
     // marking EAGAIN as safe (for Cygwin)
