@@ -67,6 +67,9 @@ void editorRefreshScreen() {
   write(STDOUT_FILENO, "\x1b[2J", 4); // writing 4 bytes to the terminal
   // [2J escape sequence used for clearing the full screen
   // VT100 escape sequences will be followed
+  write(STDOUT_FILENO, "\x1b[H", 3);
+  // [H escape sequence fro cursor positioning. By default,
+  // at the top left of the editor
 }
 
 /*** input ***/
