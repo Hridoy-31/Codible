@@ -65,13 +65,27 @@ char editorReadKey() {
 
 /*** output ***/
 
+void editorDrawRows() {
+  // putting '~' in front of each row which is not part of the
+  // text being edited
+  int y;
+  for (y=0; y<24; y++) {
+    // initially drawing 24 rows irrespective of the size of
+    // the terminal window
+    write(STDOUT_FILENO, "~\r\n", 3);
+  }
+}
+
 void editorRefreshScreen() {
   write(STDOUT_FILENO, "\x1b[2J", 4); // writing 4 bytes to the terminal
   // [2J escape sequence used for clearing the full screen
   // VT100 escape sequences will be followed
   write(STDOUT_FILENO, "\x1b[H", 3);
-  // [H escape sequence fro cursor positioning. By default,
+  // [H escape sequence for cursor positioning. By default,
   // at the top left of the editor
+  editorDrawRows();
+  write(STDOUT_FILENO, "\x1b[H", 3);
+  // for reposition the cursor at the top left again
 }
 
 /*** input ***/
