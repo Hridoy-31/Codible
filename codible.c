@@ -13,7 +13,11 @@
 
 /*** data ***/
 
-struct termios original;
+struct editorConfig {
+  struct termios original;
+};
+
+struct editorConfig E;
 
 /*** terminal ***/
 
@@ -26,19 +30,19 @@ void die(const char *s) {
 
 void disableRawMode() {
   // error checking for setting up
-  if (tcsetattr(STDIN_FILENO, TCSAFLUSH, &original) == -1) {
+  if (tcsetattr(STDIN_FILENO, TCSAFLUSH, &E.original) == -1) {
     die("tcsetattr");
   }
 }
 
 void enableRawMode() {
   // error checking for loading up
-  if (tcgetattr(STDIN_FILENO, &original) == -1) {
+  if (tcgetattr(STDIN_FILENO, &E.original) == -1) {
     die("tcgetattr");
   }
   atexit(disableRawMode); 
 
-  struct termios raw = original;
+  struct termios raw = E.original;
   raw.c_iflag &= ~(BRKINT | ICRNL | INPCK | ISTRIP | IXON); // IXON used to ignore XOFF and XON & ICRNL used to handle Carriage Return (CR) and New Line (NL), BRKINT used to handle SIGINT, INPCK used to handle Parity Check, ISTRIP used to handle 8-bit stripping, CS8 used to handle character size (CS) to 8 bits per byte
   raw.c_oflag &= ~(OPOST); // OPOST used to handle post-processing output
   raw.c_cflag |= ~(CS8);
