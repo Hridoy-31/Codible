@@ -6,6 +6,7 @@
 #include <termios.h> // struct termios, tcgetattr(), tcsetattr(), ECHO, TCSAFLUSH, ICANON, ISIG, IXON. IEXTEN, ICRNL, OPOST, BRKINT, INPCK, ISTRIP, CS8, VMIN, VTIME reside in it
 #include <unistd.h> // read(), STDIN_FILENO, write(), STDOUT_FILENO reside in it
 #include <errno.h> // errno, EAGAIN reside in it
+#include <sys/ioctl.h> // ioctl(), TIOCGWINSZ, struct winsize reside in it.
 
 /*** defines ***/
 
@@ -14,6 +15,8 @@
 /*** data ***/
 
 struct editorConfig {
+  int screenrows;
+  int screencolumns;
   struct termios original;
 };
 
@@ -67,13 +70,25 @@ char editorReadKey() {
   }
 }
 
+int getWindowSize(int *rows, int *columns) {
+  struct winsize ws; // the terminal size will initially stored here.
+  if(ioctl(STDOUT_FILENO, TIOCGWINSZ, &ws)==-1 || ws.ws_col==0) {
+    return -1;
+  }
+  else {
+    *columns = ws.ws_col;
+    *rows = ws.ws_row;
+    return 0;
+  }
+}
+
 /*** output ***/
 
 void editorDrawRows() {
   // putting '~' in front of each row which is not part of the
   // text being edited
   int y;
-  for (y=0; y<24; y++) {
+  for (y=0; y<E.screenrows; y++) {
     // initially drawing 24 rows irrespective of the size of
     // the terminal window
     write(STDOUT_FILENO, "~\r\n", 3);
@@ -108,9 +123,17 @@ void editorProcessKeypress() {
 
 /*** initialization ***/
 
+void initialEditor() {
+  if (getWindowSize(&E.screenrows, &E.screencolumns)==-1) {
+    // exception handling
+    die("getWindowSize");
+  }
+}
+
 int main()
 {
   enableRawMode();
+  initialEditor(); // Initialize all fields of editorConfig
   char c;
   while (1) {
     editorRefreshScreen();
