@@ -70,10 +70,41 @@ char editorReadKey() {
   }
 }
 
+int getCursorPosition(int *rows, int *columns) {
+  char buffer[32];
+  unsigned int i = 0;
+  if (write(STDOUT_FILENO, "\x1b[6n", 4)!=4) {
+    return -1;
+  }
+  while (i < sizeof(buffer)-1) {
+    if (read(STDIN_FILENO, &buffer[i], 1)!=1) {
+      break;
+    }
+    if (buffer[i]=='R') {
+      break;
+    }
+    i++;
+  }
+  buffer[i] = '\0';
+  printf("\r\n&buffer[1]: '%s'\r\n", &buffer[1]);
+  // &buffer[1] is used to get rid of the '\x1b' character
+  // because the terminal will accept it as another escape
+  // sequence & will not print anything
+  editorReadKey();
+  return -1;
+}
+
 int getWindowSize(int *rows, int *columns) {
   struct winsize ws; // the terminal size will initially stored here.
-  if(ioctl(STDOUT_FILENO, TIOCGWINSZ, &ws)==-1 || ws.ws_col==0) {
-    return -1;
+  if(1 || ioctl(STDOUT_FILENO, TIOCGWINSZ, &ws)==-1 || ws.ws_col==0) {
+    if (write(STDOUT_FILENO, "\x1b[999C\x1b[999B", 12)!=12) {
+      // 999C command used for cursor to go forward (right)
+      // 999B command used for cursor to go downward (down);
+      // these two commands are used for finding the bottom-right
+      // position of the cursor.
+      return -1;
+    }
+    return getCursorPosition(rows, columns);
   }
   else {
     *columns = ws.ws_col;
