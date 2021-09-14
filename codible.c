@@ -1,7 +1,7 @@
 /*** includes ***/
 
 #include <ctype.h> // iscntrl() resides in it
-#include <stdio.h> // printf(), perror() reside in it
+#include <stdio.h> // printf(), perror(), sscanf() reside in it
 #include <stdlib.h> // atexit(), exit() reside in it 
 #include <termios.h> // struct termios, tcgetattr(), tcsetattr(), ECHO, TCSAFLUSH, ICANON, ISIG, IXON. IEXTEN, ICRNL, OPOST, BRKINT, INPCK, ISTRIP, CS8, VMIN, VTIME reside in it
 #include <unistd.h> // read(), STDIN_FILENO, write(), STDOUT_FILENO reside in it
@@ -86,17 +86,22 @@ int getCursorPosition(int *rows, int *columns) {
     i++;
   }
   buffer[i] = '\0';
-  printf("\r\n&buffer[1]: '%s'\r\n", &buffer[1]);
-  // &buffer[1] is used to get rid of the '\x1b' character
-  // because the terminal will accept it as another escape
-  // sequence & will not print anything
-  editorReadKey();
-  return -1;
+  if (buffer[0] != '\x1b' || buffer[1] != '[') {
+    // making sure it responded with escape sequence.
+    return -1;
+  }
+  if (sscanf(&buffer[2], "%d;%d", rows, columns) != 2) {
+    // passing the third character of buffer because of skipping
+    // '\x1b' & '[' characters.
+    // sscanf() will parse the integers separated by the semicolon ;
+    return -1;
+  }
+  return 0;
 }
 
 int getWindowSize(int *rows, int *columns) {
   struct winsize ws; // the terminal size will initially stored here.
-  if(1 || ioctl(STDOUT_FILENO, TIOCGWINSZ, &ws)==-1 || ws.ws_col==0) {
+  if(ioctl(STDOUT_FILENO, TIOCGWINSZ, &ws)==-1 || ws.ws_col==0) {
     if (write(STDOUT_FILENO, "\x1b[999C\x1b[999B", 12)!=12) {
       // 999C command used for cursor to go forward (right)
       // 999B command used for cursor to go downward (down);
