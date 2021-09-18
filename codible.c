@@ -2,11 +2,12 @@
 
 #include <ctype.h> // iscntrl() resides in it
 #include <stdio.h> // printf(), perror(), sscanf() reside in it
-#include <stdlib.h> // atexit(), exit() reside in it 
+#include <stdlib.h> // atexit(), exit(), realloc(), free() reside in it 
 #include <termios.h> // struct termios, tcgetattr(), tcsetattr(), ECHO, TCSAFLUSH, ICANON, ISIG, IXON. IEXTEN, ICRNL, OPOST, BRKINT, INPCK, ISTRIP, CS8, VMIN, VTIME reside in it
 #include <unistd.h> // read(), STDIN_FILENO, write(), STDOUT_FILENO reside in it
 #include <errno.h> // errno, EAGAIN reside in it
 #include <sys/ioctl.h> // ioctl(), TIOCGWINSZ, struct winsize reside in it.
+#include <string.h> // memcpy() resides in it
 
 /*** defines ***/
 
@@ -118,32 +119,59 @@ int getWindowSize(int *rows, int *columns) {
   }
 }
 
+/*** append buffer ***/
+
+struct abuf {
+  char *b;
+  int len;
+};
+
+#define ABUF_INIT {NULL, 0} // initially pointing to the empty buffer
+// worked as a constructor
+
+void abAppend(struct abuf *ab, const char *s, int len) {
+  char *new = realloc(ab->b, ab->len + len);
+  if (new == NULL) {
+    return;
+  }
+  memcpy(&new[ab->len],s,len); // copy the string s at the end of the buffer
+  // updating pointer and length
+  ab->b = new;
+  ab->len += len;
+}
+
+void abFree(struct abuf *ab) {
+  free(ab->b);
+}
+
 /*** output ***/
 
-void editorDrawRows() {
+void editorDrawRows(struct abuf *ab) {
   // putting '~' in front of each row which is not part of the
   // text being edited
   int y;
   for (y=0; y<E.screenrows; y++) {
-    // initially drawing 24 rows irrespective of the size of
-    // the terminal window
-    write(STDOUT_FILENO, "~", 1);
+    abAppend(ab, "~", 1);
     if (y < E.screenrows-1) {
-      write(STDOUT_FILENO, "\r\n", 2);
+      abAppend(ab, "\r\n", 2);
     }
   }
 }
 
 void editorRefreshScreen() {
-  write(STDOUT_FILENO, "\x1b[2J", 4); // writing 4 bytes to the terminal
-  // [2J escape sequence used for clearing the full screen
+  struct abuf ab = ABUF_INIT;
+  abAppend(&ab, "\x1b[2J", 4); // [2J escape sequence used for
+  // clearing the full screen
   // VT100 escape sequences will be followed
-  write(STDOUT_FILENO, "\x1b[H", 3);
+  abAppend(&ab, "\x1b[H", 3);
   // [H escape sequence for cursor positioning. By default,
   // at the top left of the editor
-  editorDrawRows();
-  write(STDOUT_FILENO, "\x1b[H", 3);
+  editorDrawRows(&ab);
+  abAppend(&ab, "\x1b[H", 3);
   // for reposition the cursor at the top left again
+  write(STDOUT_FILENO, ab.b, ab.len); // writing buffer contents to
+  // standard output
+  abFree(&ab); // freeing the memory used by abuf
 }
 
 /*** input ***/
