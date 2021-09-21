@@ -160,6 +160,8 @@ void editorDrawRows(struct abuf *ab) {
 
 void editorRefreshScreen() {
   struct abuf ab = ABUF_INIT;
+  abAppend(&ab, "\x1b[?25l", 6);
+  // [?25l escape sequence used for hiding the cursor
   abAppend(&ab, "\x1b[2J", 4); // [2J escape sequence used for
   // clearing the full screen
   // VT100 escape sequences will be followed
@@ -169,6 +171,8 @@ void editorRefreshScreen() {
   editorDrawRows(&ab);
   abAppend(&ab, "\x1b[H", 3);
   // for reposition the cursor at the top left again
+  abAppend(&ab, "\x1b[?25h", 6);
+  // [?25h escape sequence used for showing the cursor 
   write(STDOUT_FILENO, ab.b, ab.len); // writing buffer contents to
   // standard output
   abFree(&ab); // freeing the memory used by abuf
