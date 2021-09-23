@@ -1,7 +1,7 @@
 /*** includes ***/
 
 #include <ctype.h> // iscntrl() resides in it
-#include <stdio.h> // printf(), perror(), sscanf() reside in it
+#include <stdio.h> // printf(), perror(), sscanf(), snprintf() reside in it
 #include <stdlib.h> // atexit(), exit(), realloc(), free() reside in it 
 #include <termios.h> // struct termios, tcgetattr(), tcsetattr(), ECHO, TCSAFLUSH, ICANON, ISIG, IXON. IEXTEN, ICRNL, OPOST, BRKINT, INPCK, ISTRIP, CS8, VMIN, VTIME reside in it
 #include <unistd.h> // read(), STDIN_FILENO, write(), STDOUT_FILENO reside in it
@@ -11,6 +11,7 @@
 
 /*** defines ***/
 
+#define CODIBLE_VERSION "0.0.1"
 #define CTRL_KEY(k) ((k) & 0x1f)
 
 /*** data ***/
@@ -151,7 +152,32 @@ void editorDrawRows(struct abuf *ab) {
   // text being edited
   int y;
   for (y=0; y<E.screenrows; y++) {
-    abAppend(ab, "~", 1);
+    if (y==E.screenrows/3) {
+      char welcome[80];
+      int welcomelen = snprintf(welcome,sizeof(welcome),
+				"Codible -- version %s", CODIBLE_VERSION);
+      // this will show the welcome message at 1/3 of the screen,
+      if (welcomelen > E.screencolumns) {
+	welcomelen = E.screencolumns;
+      }
+      int padding = (E.screencolumns - welcomelen)/2;
+      // centering the welcome message
+      if (padding != 0) {
+	abAppend(ab, "~", 1);
+	// first character is the ~
+	padding--;
+      }
+      while (padding--) {
+	// next spaces are filled with " " (spaces) until the message
+	// character starts
+	abAppend(ab, " ", 1);
+      }
+      // changing length according to the terminal size
+      abAppend(ab, welcome, welcomelen);
+    }
+    else {
+      abAppend(ab, "~", 1);
+    }
     abAppend(ab, "\x1b[K", 3);
     // [K escape sequence will clear each line as we redraw them
     if (y < E.screenrows-1) {
