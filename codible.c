@@ -7,7 +7,7 @@
 #include <unistd.h> // read(), STDIN_FILENO, write(), STDOUT_FILENO reside in it
 #include <errno.h> // errno, EAGAIN reside in it
 #include <sys/ioctl.h> // ioctl(), TIOCGWINSZ, struct winsize reside in it.
-#include <string.h> // memcpy() resides in it
+#include <string.h> // memcpy(), strlen() resides in it
 
 /*** defines ***/
 
@@ -17,6 +17,7 @@
 /*** data ***/
 
 struct editorConfig {
+  int cx, cy;
   int screenrows;
   int screencolumns;
   struct termios original;
@@ -195,8 +196,13 @@ void editorRefreshScreen() {
   // [H escape sequence for cursor positioning. By default,
   // at the top left of the editor
   editorDrawRows(&ab);
-  abAppend(&ab, "\x1b[H", 3);
-  // for reposition the cursor at the top left again
+  char buf[32];
+  snprintf(buf, sizeof(buf), "\x1b[%d;%dH", E.cy+1, E.cx+1);
+  // add cursor to the exact position
+  // E.cy+1 & E.cx+1 used to make the 0-based index to
+  // 1-based index.
+  // The terminal uses 1-based index but C uses 0-based index
+  abAppend(&ab, buf, strlen(buf));
   abAppend(&ab, "\x1b[?25h", 6);
   // [?25h escape sequence used for showing the cursor 
   write(STDOUT_FILENO, ab.b, ab.len); // writing buffer contents to
@@ -205,6 +211,27 @@ void editorRefreshScreen() {
 }
 
 /*** input ***/
+
+void editorMoveCursor (char key) {
+  switch (key) {
+  case 'a':
+    // moving the cursor left
+    E.cx--;
+    break;
+  case 'd':
+    // moving the cursor right
+    E.cx++;
+    break;
+  case 'w':
+    // moving the cursor up
+    E.cy--;
+    break;
+  case 's':
+    // moving the cursor down
+    E.cy++;
+    break;
+  }
+}
 
 void editorProcessKeypress() {
   // process the keypress
@@ -215,12 +242,21 @@ void editorProcessKeypress() {
     write(STDOUT_FILENO, "\x1b[H", 3);
     exit(0);
     break;
+
+  case 'w':
+  case 's':
+  case 'a':
+  case 'd':
+    editorMoveCursor(c);
+    break;
   }
 }
 
 /*** initialization ***/
 
 void initialEditor() {
+  E.cx = 0; // horizontal coordinate of the cursor that denotes the column
+  E.cy = 0; // vertical coordinate of the cursor that denotes the row
   if (getWindowSize(&E.screenrows, &E.screencolumns)==-1) {
     // exception handling
     die("getWindowSize");
