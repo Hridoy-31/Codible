@@ -20,10 +20,11 @@ enum editorKey {
   ARROW_RIGHT, // 1525
   ARROW_UP, // 1526
   ARROW_DOWN, // 1527
-  HOME_KEY, // 1528
-  END_KEY, // 1529
-  PAGE_UP, // 1530
-  PAGE_DOWN // 1531
+  DEL_KEY, // 1528
+  HOME_KEY, // 1529
+  END_KEY, // 1530
+  PAGE_UP, // 1531
+  PAGE_DOWN // 1532
 };
 
 /*** data ***/
@@ -101,8 +102,10 @@ int editorReadKey() {
 	if (seq[2] == '~') {
 	  // digit 5 for page up, 6 for page down
 	  // digit 1 or 7 for Home, 4 or 8 for End
+	  // digit 3 for Delete
 	  switch (seq[1]) {
 	  case '1' : return HOME_KEY;
+	  case '3' : return DEL_KEY;
 	  case '4' : return END_KEY;
 	  case '5' : return PAGE_UP;
 	  case '6' : return PAGE_DOWN;
