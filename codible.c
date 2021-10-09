@@ -1,13 +1,26 @@
 /*** includes ***/
 
+#define _DEFAULT_SOURCE
+#define _BSD_SOURCE
+#define _GNU_SOURCE
+
 #include <ctype.h> // iscntrl() resides in it
-#include <stdio.h> // printf(), perror(), sscanf(), snprintf() reside in it
-#include <stdlib.h> // atexit(), exit(), realloc(), free() reside in it 
-#include <termios.h> // struct termios, tcgetattr(), tcsetattr(), ECHO, TCSAFLUSH, ICANON, ISIG, IXON. IEXTEN, ICRNL, OPOST, BRKINT, INPCK, ISTRIP, CS8, VMIN, VTIME reside in it
-#include <unistd.h> // read(), STDIN_FILENO, write(), STDOUT_FILENO reside in it
+#include <stdio.h> 
+// printf(), perror(), sscanf(), snprintf(), FILE,
+// fopen(), getline() reside in it
+#include <stdlib.h> 
+// atexit(), exit(), realloc(), free(), malloc() reside in it 
+#include <termios.h> 
+// struct termios, tcgetattr(), tcsetattr(), ECHO, TCSAFLUSH, 
+// ICANON, ISIG, IXON. IEXTEN, ICRNL, OPOST, BRKINT, INPCK, 
+// ISTRIP, CS8, VMIN, VTIME reside in it
+#include <unistd.h> 
+// read(), STDIN_FILENO, write(), STDOUT_FILENO reside in it
 #include <errno.h> // errno, EAGAIN reside in it
-#include <sys/ioctl.h> // ioctl(), TIOCGWINSZ, struct winsize reside in it.
+#include <sys/ioctl.h> 
+// ioctl(), TIOCGWINSZ, struct winsize reside in it.
 #include <string.h> // memcpy(), strlen() resides in it
+#include <sys/types.h> // ssize_t resides in it
 
 /*** defines ***/
 
@@ -16,7 +29,8 @@
 
 // mapping WASD keys with the arrow constants
 enum editorKey {
-  ARROW_LEFT = 1524, // arbitrary number that is out of range of char
+  ARROW_LEFT = 1524, 
+  // arbitrary number that is out of range of char
   ARROW_RIGHT, // 1525
   ARROW_UP, // 1526
   ARROW_DOWN, // 1527
@@ -29,10 +43,20 @@ enum editorKey {
 
 /*** data ***/
 
+typedef struct erow {
+  // editor row
+  int size;
+  char *chars;
+  // store a line of text as a pointer
+} erow;
+
 struct editorConfig {
   int cx, cy;
   int screenrows;
   int screencolumns;
+  int numrows;
+  // number of rows to be displayed
+  erow row;
   struct termios original;
 };
 
@@ -62,10 +86,20 @@ void enableRawMode() {
   atexit(disableRawMode); 
 
   struct termios raw = E.original;
-  raw.c_iflag &= ~(BRKINT | ICRNL | INPCK | ISTRIP | IXON); // IXON used to ignore XOFF and XON & ICRNL used to handle Carriage Return (CR) and New Line (NL), BRKINT used to handle SIGINT, INPCK used to handle Parity Check, ISTRIP used to handle 8-bit stripping, CS8 used to handle character size (CS) to 8 bits per byte
-  raw.c_oflag &= ~(OPOST); // OPOST used to handle post-processing output
+  raw.c_iflag &= ~(BRKINT | ICRNL | INPCK | ISTRIP | IXON); 
+  // IXON used to ignore XOFF and XON & ICRNL used to handle 
+  // Carriage Return (CR) and New Line (NL), 
+  // BRKINT used to handle SIGINT, 
+  // INPCK used to handle Parity Check, 
+  // ISTRIP used to handle 8-bit stripping, 
+  // CS8 used to handle character size (CS) to 8 bits per byte
+  raw.c_oflag &= ~(OPOST); 
+  // OPOST used to handle post-processing output
   raw.c_cflag |= ~(CS8);
-  raw.c_lflag &= ~(ECHO | ICANON | IEXTEN | ISIG); // ICANON used for reading input byte by byte & ISIG used to ignore SIGINT and SIGTSTP, IEXTEN used to disable Ctrl-o and Ctrl-V
+  raw.c_lflag &= ~(ECHO | ICANON | IEXTEN | ISIG); 
+  // ICANON used for reading input byte by byte & 
+  // ISIG used to ignore SIGINT and SIGTSTP, 
+  // IEXTEN used to disable Ctrl-o and Ctrl-V
   raw.c_cc[VMIN] = 0; // control characters for terminal settings
   raw.c_cc[VTIME] = 1; // control characters for terminal settings
   // error checking for setting up raw mode
@@ -127,7 +161,8 @@ int editorReadKey() {
       }
     }
     else if (seq[0]=='O') {
-      // handling Home & End keys escape sequence starting with O (ooo, not zero)
+      // handling Home & End keys escape sequence starting with O 
+      // (ooo, not zero)
       switch (seq[1]) {
       case 'H' : return HOME_KEY;
       case 'F' : return END_KEY;
@@ -170,7 +205,8 @@ int getCursorPosition(int *rows, int *columns) {
 }
 
 int getWindowSize(int *rows, int *columns) {
-  struct winsize ws; // the terminal size will initially stored here.
+  struct winsize ws; 
+  // the terminal size will initially stored here.
   if(ioctl(STDOUT_FILENO, TIOCGWINSZ, &ws)==-1 || ws.ws_col==0) {
     if (write(STDOUT_FILENO, "\x1b[999C\x1b[999B", 12)!=12) {
       // 999C command used for cursor to go forward (right)
@@ -188,6 +224,39 @@ int getWindowSize(int *rows, int *columns) {
   }
 }
 
+/*** file i/o ***/
+
+void editorOpen(char *filename) {
+  // taking a filename & opens it for reading by fopen()
+  FILE *fp = fopen(filename, "r");
+  if (!fp) {
+    die("fopen");
+  }
+  char *line = NULL;
+  size_t linecap = 0;
+  ssize_t len;
+  // getting the line & len from getline() instead of hardcoded
+  // getline returns the length of the line it reads
+  // or -1 when it is the end of the file i.e. no more lines
+  // to read
+  len = getline(&line, &linecap, fp);
+  if (len != -1) {
+    while (len>0 && (line[len-1]=='\n' || line[len-1]=='\r')) {
+      // stripping the newline '\n' & carriage return '\r'
+      // from the line we consider. It's a one liner. so it will
+      // be redundant to include newline or carriage return
+      len--;
+    }
+    E.row.size = len;
+    E.row.chars = malloc(len + 1);
+    memcpy(E.row.chars, line, len);
+    E.row.chars[len] = '\0';
+    E.numrows = 1;
+  }
+  free(line);
+  fclose(fp);
+}
+
 /*** append buffer ***/
 
 struct abuf {
@@ -195,7 +264,8 @@ struct abuf {
   int len;
 };
 
-#define ABUF_INIT {NULL, 0} // initially pointing to the empty buffer
+#define ABUF_INIT {NULL, 0} 
+// initially pointing to the empty buffer
 // worked as a constructor
 
 void abAppend(struct abuf *ab, const char *s, int len) {
@@ -203,7 +273,8 @@ void abAppend(struct abuf *ab, const char *s, int len) {
   if (new == NULL) {
     return;
   }
-  memcpy(&new[ab->len],s,len); // copy the string s at the end of the buffer
+  memcpy(&new[ab->len],s,len); 
+  // copy the string s at the end of the buffer
   // updating pointer and length
   ab->b = new;
   ab->len += len;
@@ -220,25 +291,27 @@ void editorDrawRows(struct abuf *ab) {
   // text being edited
   int y;
   for (y=0; y<E.screenrows; y++) {
-    if (y==E.screenrows/3) {
+  if (y >= E.numrows) {
+    // Displaying the welcome message when no file is called
+    if (E.numrows==0 && y==E.screenrows/3) {
       char welcome[80];
       int welcomelen = snprintf(welcome,sizeof(welcome),
 				"Codible -- version %s", CODIBLE_VERSION);
-      // this will show the welcome message at 1/3 of the screen,
+      // this will show the welcome message at 1/3 of the screen
       if (welcomelen > E.screencolumns) {
-	welcomelen = E.screencolumns;
+	      welcomelen = E.screencolumns;
       }
       int padding = (E.screencolumns - welcomelen)/2;
       // centering the welcome message
       if (padding != 0) {
-	abAppend(ab, "~", 1);
-	// first character is the ~
-	padding--;
+	      abAppend(ab, "~", 1);
+	      // first character is the ~
+	      padding--;
       }
       while (padding--) {
-	// next spaces are filled with " " (spaces) until the message
-	// character starts
-	abAppend(ab, " ", 1);
+	      // next spaces are filled with " " (spaces) 
+        // until the message character starts
+	      abAppend(ab, " ", 1);
       }
       // changing length according to the terminal size
       abAppend(ab, welcome, welcomelen);
@@ -246,6 +319,14 @@ void editorDrawRows(struct abuf *ab) {
     else {
       abAppend(ab, "~", 1);
     }
+  }
+  else {
+    int len = E.row.size;
+    if (len > E.screencolumns) {
+      len = E.screencolumns;
+      abAppend(ab, E.row.chars, len);
+    }
+  }   
     abAppend(ab, "\x1b[K", 3);
     // [K escape sequence will clear each line as we redraw them
     if (y < E.screenrows-1) {
@@ -272,8 +353,8 @@ void editorRefreshScreen() {
   abAppend(&ab, buf, strlen(buf));
   abAppend(&ab, "\x1b[?25h", 6);
   // [?25h escape sequence used for showing the cursor 
-  write(STDOUT_FILENO, ab.b, ab.len); // writing buffer contents to
-  // standard output
+  write(STDOUT_FILENO, ab.b, ab.len); 
+  // writing buffer contents to standard output
   abFree(&ab); // freeing the memory used by abuf
 }
 
@@ -351,19 +432,27 @@ void editorProcessKeypress() {
 /*** initialization ***/
 
 void initialEditor() {
-  E.cx = 0; // horizontal coordinate of the cursor that denotes the column
-  E.cy = 0; // vertical coordinate of the cursor that denotes the row
+  E.cx = 0; 
+  // horizontal coordinate of the cursor that denotes the column
+  E.cy = 0; 
+  // vertical coordinate of the cursor that denotes the row
+  E.numrows = 0;
   if (getWindowSize(&E.screenrows, &E.screencolumns)==-1) {
     // exception handling
     die("getWindowSize");
   }
 }
 
-int main()
+int main(int argc, char *argv[])
 {
   enableRawMode();
   initialEditor(); // Initialize all fields of editorConfig
-  char c;
+  // checking if file passed or not. If no file is called from 
+  // command-line, then codible will open blank file just like
+  // Emacs
+  if (argc >= 2) {
+    editorOpen(argv[1]);
+  }
   while (1) {
     editorRefreshScreen();
     editorProcessKeypress();
@@ -377,7 +466,8 @@ int main()
       printf("%d\r\n", c); // Just the ASCII value
     }
     else {
-      printf("%d ('%c')\r\n", c, c); // ASCII value & the corresponding character
+      printf("%d ('%c')\r\n", c, c); 
+      // ASCII value & the corresponding character
     }
     if (c == CTRL_KEY('q')) // checking 'q' for quit
     {
@@ -386,5 +476,3 @@ int main()
   }
   return 0;
 }
-
-
