@@ -56,7 +56,8 @@ struct editorConfig {
   int screencolumns;
   int numrows;
   // number of rows to be displayed
-  erow row;
+  // making erow arrays for taking multiple lines
+  erow *row;
   struct termios original;
 };
 
@@ -224,6 +225,18 @@ int getWindowSize(int *rows, int *columns) {
   }
 }
 
+/*** row operations ***/
+
+void editorAppendRow (char *s, size_t len) {
+  E.row = realloc(E.row, sizeof(erow)*(E.numrows + 1));
+  int at = E.numrows;
+  E.row[at].size = len;
+  E.row[at].chars = malloc(len + 1);
+  memcpy(E.row[at].chars, s, len);
+  E.row[at].chars[len] = '\0';
+  E.numrows++;
+}
+
 /*** file i/o ***/
 
 void editorOpen(char *filename) {
@@ -239,19 +252,14 @@ void editorOpen(char *filename) {
   // getline returns the length of the line it reads
   // or -1 when it is the end of the file i.e. no more lines
   // to read
-  len = getline(&line, &linecap, fp);
-  if (len != -1) {
+  while ((len = getline(&line, &linecap, fp)) != -1) {
     while (len>0 && (line[len-1]=='\n' || line[len-1]=='\r')) {
       // stripping the newline '\n' & carriage return '\r'
       // from the line we consider. It's a one liner. so it will
       // be redundant to include newline or carriage return
       len--;
     }
-    E.row.size = len;
-    E.row.chars = malloc(len + 1);
-    memcpy(E.row.chars, line, len);
-    E.row.chars[len] = '\0';
-    E.numrows = 1;
+    editorAppendRow(line, len);
   }
   free(line);
   fclose(fp);
@@ -321,10 +329,10 @@ void editorDrawRows(struct abuf *ab) {
     }
   }
   else {
-    int len = E.row.size;
+    int len = E.row[y].size;
     if (len > E.screencolumns) {
       len = E.screencolumns;
-      abAppend(ab, E.row.chars, len);
+      abAppend(ab, E.row[y].chars, len);
     }
   }   
     abAppend(ab, "\x1b[K", 3);
@@ -437,6 +445,7 @@ void initialEditor() {
   E.cy = 0; 
   // vertical coordinate of the cursor that denotes the row
   E.numrows = 0;
+  E.row = NULL;
   if (getWindowSize(&E.screenrows, &E.screencolumns)==-1) {
     // exception handling
     die("getWindowSize");
@@ -456,23 +465,6 @@ int main(int argc, char *argv[])
   while (1) {
     editorRefreshScreen();
     editorProcessKeypress();
-    char c = '\0';
-    // marking EAGAIN as safe (for Cygwin)
-    if (read(STDIN_FILENO, &c, 1) == -1 && errno != EAGAIN) {
-      die("read");
-    }
-    if (iscntrl(c)) // check it's printable or not
-    {
-      printf("%d\r\n", c); // Just the ASCII value
-    }
-    else {
-      printf("%d ('%c')\r\n", c, c); 
-      // ASCII value & the corresponding character
-    }
-    if (c == CTRL_KEY('q')) // checking 'q' for quit
-    {
-      break;
-    }
   }
   return 0;
 }
