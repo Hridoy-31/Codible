@@ -52,6 +52,7 @@ typedef struct erow {
 
 struct editorConfig {
   int cx, cy;
+  int rowoff;
   int screenrows;
   int screencolumns;
   int numrows;
@@ -294,12 +295,26 @@ void abFree(struct abuf *ab) {
 
 /*** output ***/
 
+void editorScroll() {
+  if (E.cy < E.rowoff) {
+    // checking if the cursor is within the visible window
+    E.rowoff = E.cy;
+  }
+  if (E.cy >= E.rowoff + E.screenrows) {
+    // if the cursor is out of visible window, then
+    // scroll & show the remaining part within the
+    // visible window
+    E.rowoff = E.cy - E.screenrows + 1;
+  }
+}
+
 void editorDrawRows(struct abuf *ab) {
   // putting '~' in front of each row which is not part of the
   // text being edited
   int y;
   for (y=0; y<E.screenrows; y++) {
-  if (y >= E.numrows) {
+    int filerow = y+E.rowoff;
+  if (filerow >= E.numrows) {
     // Displaying the welcome message when no file is called
     if (E.numrows==0 && y==E.screenrows/3) {
       char welcome[80];
@@ -329,10 +344,10 @@ void editorDrawRows(struct abuf *ab) {
     }
   }
   else {
-    int len = E.row[y].size;
+    int len = E.row[filerow].size;
     if (len > E.screencolumns) {
       len = E.screencolumns;
-      abAppend(ab, E.row[y].chars, len);
+      abAppend(ab, E.row[filerow].chars, len);
     }
   }   
     abAppend(ab, "\x1b[K", 3);
@@ -344,6 +359,7 @@ void editorDrawRows(struct abuf *ab) {
 }
 
 void editorRefreshScreen() {
+  editorScroll();
   struct abuf ab = ABUF_INIT;
   abAppend(&ab, "\x1b[?25l", 6);
   // [?25l escape sequence used for hiding the cursor
@@ -353,7 +369,10 @@ void editorRefreshScreen() {
   // at the top left of the editor
   editorDrawRows(&ab);
   char buf[32];
-  snprintf(buf, sizeof(buf), "\x1b[%d;%dH", E.cy+1, E.cx+1);
+  // putting the cursor to the previous position within the 
+  // visible window when scroll up
+  snprintf(buf, sizeof(buf), "\x1b[%d;%dH", 
+    (E.cy-E.rowoff)+1, E.cx+1);
   // add cursor to the exact position
   // E.cy+1 & E.cx+1 used to make the 0-based index to
   // 1-based index.
@@ -390,7 +409,9 @@ void editorMoveCursor (int key) {
     break;
   case ARROW_DOWN:
     // moving the cursor down
-    if (E.cy != E.screenrows-1) {
+    if (E.cy < E.numrows) {
+      // checking the cursor not going down after the 
+      // very last line of the file
       E.cy++;
     }
     break;
@@ -444,6 +465,7 @@ void initialEditor() {
   // horizontal coordinate of the cursor that denotes the column
   E.cy = 0; 
   // vertical coordinate of the cursor that denotes the row
+  E.rowoff = 0;
   E.numrows = 0;
   E.row = NULL;
   if (getWindowSize(&E.screenrows, &E.screencolumns)==-1) {
