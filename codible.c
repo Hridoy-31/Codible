@@ -53,6 +53,7 @@ typedef struct erow {
 struct editorConfig {
   int cx, cy;
   int rowoff;
+  int coloff;
   int screenrows;
   int screencolumns;
   int numrows;
@@ -306,6 +307,16 @@ void editorScroll() {
     // visible window
     E.rowoff = E.cy - E.screenrows + 1;
   }
+  if (E.cx < E.coloff) {
+    // checking if the cursor is within the visible window
+    E.coloff = E.cx;
+  }
+  if (E.cx >= E.coloff + E.screencolumns) {
+    // if the cursor is out of visible window, then
+    // scroll & show the remaining part within the
+    // visible window
+    E.coloff = E.cx - E.screencolumns + 1;
+  }
 }
 
 void editorDrawRows(struct abuf *ab) {
@@ -344,10 +355,17 @@ void editorDrawRows(struct abuf *ab) {
     }
   }
   else {
-    int len = E.row[filerow].size;
+    // to show the remaining part of a line beyond the visible 
+    // window
+    int len = E.row[filerow].size - E.coloff;
+    if (len < 0) {
+      // nothing will be displayed on the line after scrolling
+      // if the cursor beyond the end of the line
+      len = 0;
+    }
     if (len > E.screencolumns) {
       len = E.screencolumns;
-      abAppend(ab, E.row[filerow].chars, len);
+      abAppend(ab, &E.row[filerow].chars[E.coloff], len);
     }
   }   
     abAppend(ab, "\x1b[K", 3);
@@ -372,7 +390,7 @@ void editorRefreshScreen() {
   // putting the cursor to the previous position within the 
   // visible window when scroll up
   snprintf(buf, sizeof(buf), "\x1b[%d;%dH", 
-    (E.cy-E.rowoff)+1, E.cx+1);
+    (E.cy-E.rowoff)+1, (E.cx-E.coloff)+1);
   // add cursor to the exact position
   // E.cy+1 & E.cx+1 used to make the 0-based index to
   // 1-based index.
@@ -397,9 +415,7 @@ void editorMoveCursor (int key) {
     break;
   case ARROW_RIGHT:
     // moving the cursor right
-    if (E.cx != E.screencolumns-1) {
-      E.cx++;
-    }
+    E.cx++;
     break;
   case ARROW_UP:
     // moving the cursor up
@@ -465,7 +481,8 @@ void initialEditor() {
   // horizontal coordinate of the cursor that denotes the column
   E.cy = 0; 
   // vertical coordinate of the cursor that denotes the row
-  E.rowoff = 0;
+  E.rowoff = 0; // row offset
+  E.coloff = 0; // column offset
   E.numrows = 0;
   E.row = NULL;
   if (getWindowSize(&E.screenrows, &E.screencolumns)==-1) {
