@@ -406,6 +406,8 @@ void editorRefreshScreen() {
 /*** input ***/
 
 void editorMoveCursor (int key) {
+  // checking whether the cursor is in last line or not
+  erow *row = (E.cy >= E.numrows) ? NULL : &E.row[E.cy];
   switch (key) {
   case ARROW_LEFT:
     // moving the cursor left
@@ -415,7 +417,11 @@ void editorMoveCursor (int key) {
     break;
   case ARROW_RIGHT:
     // moving the cursor right
-    E.cx++;
+    // checking if the cursor is in left of the last
+    // character or not
+    if (row && E.cx < row->size) {
+      E.cx++;
+    }
     break;
   case ARROW_UP:
     // moving the cursor up
