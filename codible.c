@@ -414,6 +414,13 @@ void editorMoveCursor (int key) {
     if (E.cx != 0) {
       E.cx--;
     }
+    // implementing the feature of pressing left arrow to
+    // go to the end of the previous line
+    // and checking it's not the very first line
+    else if (E.cy > 0) {
+      E.cy--;
+      E.cx = E.row[E.cy].size;
+    }
     break;
   case ARROW_RIGHT:
     // moving the cursor right
@@ -437,6 +444,13 @@ void editorMoveCursor (int key) {
       E.cy++;
     }
     break;
+  }
+  row = (E.cy >= E.numrows) ? NULL : &E.row[E.cy];
+  int rowlen = row ? row->size : 0;
+  if (E.cx > rowlen) {
+    // limiting the cursor for not to go beyond the
+    // endline;
+    E.cx = rowlen;
   }
 }
 
