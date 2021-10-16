@@ -429,6 +429,12 @@ void editorMoveCursor (int key) {
     if (row && E.cx < row->size) {
       E.cx++;
     }
+    // implementing the feature of pressing right arrow
+    // to go to the beginning of the next line
+    else if (row && E.cx == row->size) {
+      E.cy++;
+      E.cx = 0;
+    }
     break;
   case ARROW_UP:
     // moving the cursor up
