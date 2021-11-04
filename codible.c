@@ -26,6 +26,7 @@
 
 #define CODIBLE_VERSION "0.0.1"
 #define CTRL_KEY(k) ((k) & 0x1f)
+#define CODIBLE_TAB_STOP 8
 
 // mapping WASD keys with the arrow constants
 enum editorKey {
@@ -46,8 +47,12 @@ enum editorKey {
 typedef struct erow {
   // editor row
   int size;
+  // the size of rendering characters
+  int rsize;
   char *chars;
   // store a line of text as a pointer
+  char *render;
+  // for rendering the non-printable characters;
 } erow;
 
 struct editorConfig {
@@ -229,6 +234,37 @@ int getWindowSize(int *rows, int *columns) {
 
 /*** row operations ***/
 
+void editorUpdateRow(erow *row) {
+  int tabs = 0;
+  for (int j=0; j<row->size; j++) {
+    // counting tabs found in chars of the row
+    if (row->chars[j] == '\t') {
+      tabs++;
+    }
+  }
+  free(row->render);
+  // the maximum number of characters needed
+  // for a tab is 8
+  row->render = malloc(row->size + tabs*(CODIBLE_TAB_STOP-1) + 1);
+  int index = 0;
+  for (int j=0; j<row->size; j++) {
+    // if a tab is found, replace it with a space
+    // until the tab stop location
+    if (row->chars[j] == '\t') {
+      row->render[index++] = ' ';
+      // tab stop location can be divided by 8
+      while (index%CODIBLE_TAB_STOP != 0) {
+        row->render[index++] = ' ';
+      }
+    }
+    else {
+      row->render[index++] = row->chars[j];
+    }
+  }
+  row->render[index] = '\0';
+  row->rsize = index;
+}
+
 void editorAppendRow (char *s, size_t len) {
   E.row = realloc(E.row, sizeof(erow)*(E.numrows + 1));
   int at = E.numrows;
@@ -236,6 +272,11 @@ void editorAppendRow (char *s, size_t len) {
   E.row[at].chars = malloc(len + 1);
   memcpy(E.row[at].chars, s, len);
   E.row[at].chars[len] = '\0';
+  // Initializing the rendering size is 0 
+  // and the rendering string is NULL
+  E.row[at].rsize = 0;
+  E.row[at].render = NULL;
+  editorUpdateRow(&E.row[at]);
   E.numrows++;
 }
 
@@ -357,7 +398,7 @@ void editorDrawRows(struct abuf *ab) {
   else {
     // to show the remaining part of a line beyond the visible 
     // window
-    int len = E.row[filerow].size - E.coloff;
+    int len = E.row[filerow].rsize - E.coloff;
     if (len < 0) {
       // nothing will be displayed on the line after scrolling
       // if the cursor beyond the end of the line
@@ -365,8 +406,8 @@ void editorDrawRows(struct abuf *ab) {
     }
     if (len > E.screencolumns) {
       len = E.screencolumns;
-      abAppend(ab, &E.row[filerow].chars[E.coloff], len);
     }
+    abAppend(ab, &E.row[filerow].render[E.coloff], len);
   }   
     abAppend(ab, "\x1b[K", 3);
     // [K escape sequence will clear each line as we redraw them
