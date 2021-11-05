@@ -57,6 +57,7 @@ typedef struct erow {
 
 struct editorConfig {
   int cx, cy;
+  int rx;
   int rowoff;
   int coloff;
   int screenrows;
@@ -234,6 +235,22 @@ int getWindowSize(int *rows, int *columns) {
 
 /*** row operations ***/
 
+int editorRowCxToRx (erow *row, int cx) {
+  int rx = 0;
+  for (int j=0; j<cx; j++) {
+    if (row->chars[j] == '\t') {
+      rx = rx + (CODIBLE_TAB_STOP - 1) - (rx % CODIBLE_TAB_STOP);
+      // (rx % CODIBLE_TAB_STOP) = how many columns to the right
+      // of the last tab stop
+      // (CODIBLE_TAB_STOP - 1) = how many columns to the left
+      // of the next tab stop
+      // Added these with rx to get to the next tab stop
+    }
+    rx++; // gets on the next tab stop
+  } 
+  return rx;
+}
+
 void editorUpdateRow(erow *row) {
   int tabs = 0;
   for (int j=0; j<row->size; j++) {
@@ -338,6 +355,10 @@ void abFree(struct abuf *ab) {
 /*** output ***/
 
 void editorScroll() {
+  E.rx = 0;
+  if (E.cy < E.numrows) {
+    E.rx = editorRowCxToRx(&E.row[E.cy], E.cx);
+  }
   if (E.cy < E.rowoff) {
     // checking if the cursor is within the visible window
     E.rowoff = E.cy;
@@ -348,15 +369,15 @@ void editorScroll() {
     // visible window
     E.rowoff = E.cy - E.screenrows + 1;
   }
-  if (E.cx < E.coloff) {
+  if (E.rx < E.coloff) {
     // checking if the cursor is within the visible window
-    E.coloff = E.cx;
+    E.coloff = E.rx;
   }
-  if (E.cx >= E.coloff + E.screencolumns) {
+  if (E.rx >= E.coloff + E.screencolumns) {
     // if the cursor is out of visible window, then
     // scroll & show the remaining part within the
     // visible window
-    E.coloff = E.cx - E.screencolumns + 1;
+    E.coloff = E.rx - E.screencolumns + 1;
   }
 }
 
@@ -431,7 +452,7 @@ void editorRefreshScreen() {
   // putting the cursor to the previous position within the 
   // visible window when scroll up
   snprintf(buf, sizeof(buf), "\x1b[%d;%dH", 
-    (E.cy-E.rowoff)+1, (E.cx-E.coloff)+1);
+    (E.cy-E.rowoff)+1, (E.rx-E.coloff)+1);
   // add cursor to the exact position
   // E.cy+1 & E.cx+1 used to make the 0-based index to
   // 1-based index.
@@ -548,6 +569,7 @@ void initialEditor() {
   // horizontal coordinate of the cursor that denotes the column
   E.cy = 0; 
   // vertical coordinate of the cursor that denotes the row
+  E.rx = 0; // horizontal coordinate used for rendering
   E.rowoff = 0; // row offset
   E.coloff = 0; // column offset
   E.numrows = 0;
