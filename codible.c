@@ -537,7 +537,10 @@ void editorProcessKeypress() {
     break;
 
   case END_KEY:
-    E.cx = E.screencolumns-1;
+    // moves the cursor at the end of the current file
+    if (E.cy < E.numrows) {
+      E.cx = E.row[E.cy].size;
+    }
     break;
 
     // page up will send the cursor at the top row
