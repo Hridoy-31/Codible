@@ -19,7 +19,8 @@
 #include <errno.h> // errno, EAGAIN reside in it
 #include <sys/ioctl.h> 
 // ioctl(), TIOCGWINSZ, struct winsize reside in it.
-#include <string.h> // memcpy(), strlen() resides in it
+#include <string.h> // memcpy(), strlen(), 
+// strdup() resides in it
 #include <sys/types.h> // ssize_t resides in it
 
 /*** defines ***/
@@ -66,6 +67,7 @@ struct editorConfig {
   // number of rows to be displayed
   // making erow arrays for taking multiple lines
   erow *row;
+  char *filename;
   struct termios original;
 };
 
@@ -300,6 +302,8 @@ void editorAppendRow (char *s, size_t len) {
 /*** file i/o ***/
 
 void editorOpen(char *filename) {
+  free(E.filename);
+  E.filename = strdup(filename);
   // taking a filename & opens it for reading by fopen()
   FILE *fp = fopen(filename, "r");
   if (!fp) {
@@ -432,10 +436,39 @@ void editorDrawRows(struct abuf *ab) {
   }   
     abAppend(ab, "\x1b[K", 3);
     // [K escape sequence will clear each line as we redraw them
-    if (y < E.screenrows-1) {
-      abAppend(ab, "\r\n", 2);
+    abAppend(ab, "\r\n", 2);
+  }
+}
+
+void editorDrawStatusBar (struct abuf *ab) {
+  // making the status bar in inverted colors
+  // "\x1b[7m" switches to inverted color formatting
+  abAppend(ab, "\x1b[7m", 4);
+  char status[80], rstatus[80];
+  int len = snprintf(status, sizeof(status), "%.20s - %d lines",
+    E.filename ? E.filename : "[No Name]", E.numrows);
+  int rlen = snprintf(rstatus, sizeof(rstatus), "%d/%d",
+    E.cy+1, E.numrows);
+  // restricting the characters to remain in status bar
+  if (len > E.screencolumns) {
+    len = E.screencolumns;
+  }
+  abAppend(ab, status, len);
+  // filling the status bar with blank spaces
+  while (len < E.screencolumns) {
+    // for printing the current line number at the very
+    // right side of the status bar
+    if (E.screencolumns - len == rlen) {
+      abAppend(ab, rstatus, rlen);
+      break;
+    }
+    else {
+    abAppend(ab, " ", 1);
+    len++;
     }
   }
+  // "\x1b[m" switches (back) to the normal text formatting
+  abAppend(ab, "\x1b[m", 3);
 }
 
 void editorRefreshScreen() {
@@ -448,6 +481,7 @@ void editorRefreshScreen() {
   // [H escape sequence for cursor positioning. By default,
   // at the top left of the editor
   editorDrawRows(&ab);
+  editorDrawStatusBar(&ab);
   char buf[32];
   // putting the cursor to the previous position within the 
   // visible window when scroll up
@@ -588,10 +622,12 @@ void initialEditor() {
   E.coloff = 0; // column offset
   E.numrows = 0;
   E.row = NULL;
+  E.filename = NULL;
   if (getWindowSize(&E.screenrows, &E.screencolumns)==-1) {
     // exception handling
     die("getWindowSize");
   }
+  E.screenrows = E.screenrows - 1;
 }
 
 int main(int argc, char *argv[])
