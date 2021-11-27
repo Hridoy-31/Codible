@@ -7,7 +7,7 @@
 #include <ctype.h> // iscntrl() resides in it
 #include <stdio.h> 
 // printf(), perror(), sscanf(), snprintf(), FILE,
-// fopen(), getline() reside in it
+// fopen(), getline(), vsnprintf() reside in it
 #include <stdlib.h> 
 // atexit(), exit(), realloc(), free(), malloc() reside in it 
 #include <termios.h> 
@@ -22,6 +22,8 @@
 #include <string.h> // memcpy(), strlen(), 
 // strdup() resides in it
 #include <sys/types.h> // ssize_t resides in it
+#include <time.h> // time_t, time() reside in it
+#include <stdarg.h> // va_list, va_start(), va_end() reside in it
 
 /*** defines ***/
 
@@ -68,6 +70,8 @@ struct editorConfig {
   // making erow arrays for taking multiple lines
   erow *row;
   char *filename;
+  char statusmessage[80];
+  time_t statusmessage_time;
   struct termios original;
 };
 
@@ -469,6 +473,21 @@ void editorDrawStatusBar (struct abuf *ab) {
   }
   // "\x1b[m" switches (back) to the normal text formatting
   abAppend(ab, "\x1b[m", 3);
+  abAppend(ab, "\r\n", 2);
+}
+
+void editorDrawMessageBar(struct abuf *ab) {
+  // clearing the message bar
+  abAppend(ab, "\x1b[K", 3);
+  int msglen = strlen(E.statusmessage);
+  // fitting the message within the column space
+  if (msglen > E.screencolumns) {
+    msglen = E.screencolumns;
+  }
+  // displaying the message if it's less than 5 second's old
+  if (msglen && time(NULL) - E.statusmessage_time < 5) {
+    abAppend(ab, E.statusmessage, msglen);
+  }
 }
 
 void editorRefreshScreen() {
@@ -482,6 +501,7 @@ void editorRefreshScreen() {
   // at the top left of the editor
   editorDrawRows(&ab);
   editorDrawStatusBar(&ab);
+  editorDrawMessageBar(&ab);
   char buf[32];
   // putting the cursor to the previous position within the 
   // visible window when scroll up
@@ -497,6 +517,29 @@ void editorRefreshScreen() {
   write(STDOUT_FILENO, ab.b, ab.len); 
   // writing buffer contents to standard output
   abFree(&ab); // freeing the memory used by abuf
+}
+
+// A thorough knowledge of VARIADIC FUNCTION is needed !!!
+// the ... denotes the function can take any number of arguments
+void editorSetStatusMessage (const char *fmt, ...) {
+  // there will be va_start() to denote the start 
+  // of the operation and va_end() to denote the end
+  // of the operation of a value type va_list.
+  va_list ap;
+  // the last argument before the ... must be passed
+  // to va_start() to get the address of the next argument.
+  // Between va_start() and va_end(), there will be va_arg()
+  // which will be executed on the type of the next argument.
+  va_start(ap, fmt);
+  // storing the resulting string in E.statusmessage 
+  // Here, vsnprintf() works as a va_arg();
+  vsnprintf(E.statusmessage, sizeof(E.statusmessage), fmt, ap);
+  va_end(ap);
+  // setting the current time in status message time
+  E.statusmessage_time = time(NULL);
+  // current time can be gotten by passing NULL inside the time()
+  // it will calculate the seconds have past since 
+  // January 1, 1970 midnight.
 }
 
 /*** input ***/
@@ -623,11 +666,13 @@ void initialEditor() {
   E.numrows = 0;
   E.row = NULL;
   E.filename = NULL;
+  E.statusmessage[0] = '\0';
+  E.statusmessage_time = 0;
   if (getWindowSize(&E.screenrows, &E.screencolumns)==-1) {
     // exception handling
     die("getWindowSize");
   }
-  E.screenrows = E.screenrows - 1;
+  E.screenrows = E.screenrows - 2;
 }
 
 int main(int argc, char *argv[])
@@ -640,6 +685,7 @@ int main(int argc, char *argv[])
   if (argc >= 2) {
     editorOpen(argv[1]);
   }
+  editorSetStatusMessage("HELP: Ctrl-Q = Quit");
   while (1) {
     editorRefreshScreen();
     editorProcessKeypress();
