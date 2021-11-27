@@ -33,6 +33,7 @@
 
 // mapping WASD keys with the arrow constants
 enum editorKey {
+  BACKSPACE = 127,
   ARROW_LEFT = 1524, 
   // arbitrary number that is out of range of char
   ARROW_RIGHT, // 1525
@@ -631,29 +632,40 @@ void editorProcessKeypress() {
   // process the keypress
   int c = editorReadKey();
   switch (c) {
-  case CTRL_KEY('q'):
-    write(STDOUT_FILENO, "\x1b[2J", 4);
-    write(STDOUT_FILENO, "\x1b[H", 3);
-    exit(0);
-    break;
+    // case handling for "Enter" key
+    case '\r':
+      /* TODO */
+      break;
 
-  case HOME_KEY:
-    E.cx = 0;
-    break;
+    case CTRL_KEY('q'):
+      write(STDOUT_FILENO, "\x1b[2J", 4);
+      write(STDOUT_FILENO, "\x1b[H", 3);
+      exit(0);
+      break;
 
-  case END_KEY:
-    // moves the cursor at the end of the current file
-    if (E.cy < E.numrows) {
-      E.cx = E.row[E.cy].size;
-    }
-    break;
+    case HOME_KEY:
+      E.cx = 0;
+      break;
 
-    // page up will send the cursor at the top row
-    // page down will send the cursor at the bottom row
+    case END_KEY:
+      // moves the cursor at the end of the current file
+      if (E.cy < E.numrows) {
+        E.cx = E.row[E.cy].size;
+      }
+      break;
 
-  case PAGE_UP:
-  case PAGE_DOWN:
-    {
+    case BACKSPACE:
+    case CTRL_KEY('h'):
+    case DEL_KEY:
+      /* TODO */
+      break;
+
+      // page up will send the cursor at the top row
+      // page down will send the cursor at the bottom row
+
+    case PAGE_UP:
+    case PAGE_DOWN:
+      {
       // scrolling up a page by PAGE_UP
       if (c == PAGE_UP) {
         E.cy = E.rowoff;
@@ -667,21 +679,27 @@ void editorProcessKeypress() {
       }
       int times = E.screenrows;
       while (times--) {
-	editorMoveCursor(c==PAGE_UP ? ARROW_UP : ARROW_DOWN);
+	      editorMoveCursor(c==PAGE_UP ? ARROW_UP : ARROW_DOWN);
       }
     }
     break;
 
-  case ARROW_UP:
-  case ARROW_DOWN:
-  case ARROW_LEFT:
-  case ARROW_RIGHT:
-    editorMoveCursor(c);
-    break;
+    case ARROW_UP:
+    case ARROW_DOWN:
+    case ARROW_LEFT:
+    case ARROW_RIGHT:
+      editorMoveCursor(c);
+      break;
 
-  default:
-    editorInsertChar(c);
-    break;
+    // Ctrl-L used to refresh the terminal window
+    case CTRL_KEY('l'):
+    // case handling for "Esc" key
+    case '\x1b':
+      break;
+
+    default:
+      editorInsertChar(c);
+      break;
   }
 }
 
