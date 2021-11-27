@@ -20,7 +20,7 @@
 #include <sys/ioctl.h> 
 // ioctl(), TIOCGWINSZ, struct winsize reside in it.
 #include <string.h> // memcpy(), strlen(), 
-// strdup() resides in it
+// strdup(), memmove() resides in it
 #include <sys/types.h> // ssize_t resides in it
 #include <time.h> // time_t, time() reside in it
 #include <stdarg.h> // va_list, va_start(), va_end() reside in it
@@ -301,6 +301,34 @@ void editorAppendRow (char *s, size_t len) {
   E.row[at].render = NULL;
   editorUpdateRow(&E.row[at]);
   E.numrows++;
+}
+
+void editorRowInsertChar(erow *row, int at, int c) {
+  if (at<0 || at>row->size) {
+    at = row->size;
+  }
+  row->chars = realloc(row->chars, row->size + 2);
+  // memmove is safe to use than memcpy when source & 
+  // destination of an array overlaps with each other 
+  memmove(&row->chars[at+1], &row->chars[at], row->size - at+1);
+  row->size++;
+  row->chars[at] = c;
+  // updating render & rsize
+  editorUpdateRow(row);
+}
+
+/*** editor operations ***/
+
+void editorInsertChar (int c) {
+  if (E.cy == E.numrows) {
+    // appending a blank row after the end of a line to take 
+    // the character from the user
+    editorAppendRow("", 0);
+  }
+  editorRowInsertChar(&E.row[E.cy], E.cx, c);
+  // after taking the character, moving forward the cursor
+  // to take the next character right after the previous one
+  E.cx++;
 }
 
 /*** file i/o ***/
@@ -649,6 +677,10 @@ void editorProcessKeypress() {
   case ARROW_LEFT:
   case ARROW_RIGHT:
     editorMoveCursor(c);
+    break;
+
+  default:
+    editorInsertChar(c);
     break;
   }
 }
