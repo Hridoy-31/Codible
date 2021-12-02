@@ -15,15 +15,17 @@
 // ICANON, ISIG, IXON. IEXTEN, ICRNL, OPOST, BRKINT, INPCK, 
 // ISTRIP, CS8, VMIN, VTIME reside in it
 #include <unistd.h> 
-// read(), STDIN_FILENO, write(), STDOUT_FILENO reside in it
+// read(), STDIN_FILENO, write(), STDOUT_FILENO
+// ftruncate(), close() reside in it
 #include <errno.h> // errno, EAGAIN reside in it
 #include <sys/ioctl.h> 
 // ioctl(), TIOCGWINSZ, struct winsize reside in it.
 #include <string.h> // memcpy(), strlen(), 
-// strdup(), memmove() resides in it
+// strdup(), memmove(), strerror() reside in it
 #include <sys/types.h> // ssize_t resides in it
 #include <time.h> // time_t, time() reside in it
 #include <stdarg.h> // va_list, va_start(), va_end() reside in it
+#include <fcntl.h> // open(), O_RDWR, O_CREAT reside in it 
 
 /*** defines ***/
 
@@ -77,6 +79,10 @@ struct editorConfig {
 };
 
 struct editorConfig E;
+
+/*** prototypes ***/
+
+void editorSetStatusMessage(const char *fmt, ...);
 
 /*** terminal ***/
 
@@ -334,6 +340,26 @@ void editorInsertChar (int c) {
 
 /*** file i/o ***/
 
+char *editorRowsToString(int *buflen) {
+  int totallen=0;
+  // getting the total size to be copied
+  for (int j=0; j<E.numrows; j++) {
+    totallen = totallen + E.row[j].size + 1;
+  }
+  *buflen = totallen;
+  char *buf = malloc(totallen);
+  char *p = buf;
+  for (int j=0; j<E.numrows; j++) {
+    memcpy(p, E.row[j].chars, E.row[j].size);
+    p = p + E.row[j].size;
+    // appending the new line character after each row
+    *p = '\n';
+    p++;
+  }
+  return buf;
+  // the caller function will free the buf
+}
+
 void editorOpen(char *filename) {
   free(E.filename);
   E.filename = strdup(filename);
@@ -360,6 +386,37 @@ void editorOpen(char *filename) {
   }
   free(line);
   fclose(fp);
+}
+
+void editorSave() {
+  if (E.filename == NULL) {
+    return;
+  }
+  int len;
+  char *buf = editorRowsToString(&len);
+  // opening E.filename
+  // if it's new, then create a file. that's why O_CREAT used
+  // if it exists, then open the file for read and write.
+  // Thats's why O_RDWR is used.
+  // OCREAT's permission here is  0644.
+  // The 0644 permits that the owner can read and write 
+  // whenever they want
+  // otherwise the user can only read
+  int fd = open(E.filename, O_RDWR | O_CREAT, 0644);
+  if (fd != -1) {
+    if (ftruncate(fd, len) != -1) {
+      if (write(fd, buf, len) == len) {
+        close(fd);
+        free(buf);
+        editorSetStatusMessage("%d bytes written to disk", len);
+        return;
+      }
+    }
+    close(fd);
+  }
+  free(buf);
+  editorSetStatusMessage("Can't save !! I/O error: %s", 
+    strerror(errno));
 }
 
 /*** append buffer ***/
@@ -643,6 +700,10 @@ void editorProcessKeypress() {
       exit(0);
       break;
 
+    case CTRL_KEY('s'):
+      editorSave();
+      break;
+
     case HOME_KEY:
       E.cx = 0;
       break;
@@ -735,7 +796,7 @@ int main(int argc, char *argv[])
   if (argc >= 2) {
     editorOpen(argv[1]);
   }
-  editorSetStatusMessage("HELP: Ctrl-Q = Quit");
+  editorSetStatusMessage("HELP: Ctrl-S = Save | Ctrl-Q = Quit");
   while (1) {
     editorRefreshScreen();
     editorProcessKeypress();
