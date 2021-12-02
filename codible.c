@@ -32,6 +32,8 @@
 #define CODIBLE_VERSION "0.0.1"
 #define CTRL_KEY(k) ((k) & 0x1f)
 #define CODIBLE_TAB_STOP 8
+// press Ctrl-Q 3 more times to quit the editor without saving
+#define KILO_QUIT_TIMES 3 
 
 // mapping WASD keys with the arrow constants
 enum editorKey {
@@ -693,6 +695,7 @@ void editorMoveCursor (int key) {
 }
 
 void editorProcessKeypress() {
+  static int quit_times = KILO_QUIT_TIMES;
   // process the keypress
   int c = editorReadKey();
   switch (c) {
@@ -702,6 +705,13 @@ void editorProcessKeypress() {
       break;
 
     case CTRL_KEY('q'):
+      if (E.dirty && quit_times > 0) {
+        editorSetStatusMessage("WARNING!!! File has unsaved"
+          " changes. Press Ctrl-Q %d more times to quit.", 
+          quit_times);
+        quit_times--;
+        return;
+      }
       write(STDOUT_FILENO, "\x1b[2J", 4);
       write(STDOUT_FILENO, "\x1b[H", 3);
       exit(0);
@@ -769,6 +779,9 @@ void editorProcessKeypress() {
       editorInsertChar(c);
       break;
   }
+  // by pressing any key other than Ctrl-Q, the quit_times
+  // resets back to 3
+  quit_times = KILO_QUIT_TIMES;
 }
 
 /*** initialization ***/
