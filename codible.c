@@ -299,9 +299,13 @@ void editorUpdateRow(erow *row) {
   row->rsize = index;
 }
 
-void editorAppendRow (char *s, size_t len) {
+void editorInsertRow (int at, char *s, size_t len) {
+  if (at<0 || at>E.numrows) {
+    // validating the index
+    return;
+  }
   E.row = realloc(E.row, sizeof(erow)*(E.numrows + 1));
-  int at = E.numrows;
+  memmove(&E.row[at+1], &E.row[at], sizeof(erow)*(E.numrows-at));
   E.row[at].size = len;
   E.row[at].chars = malloc(len + 1);
   memcpy(E.row[at].chars, s, len);
@@ -374,12 +378,33 @@ void editorInsertChar (int c) {
   if (E.cy == E.numrows) {
     // appending a blank row after the end of a line to take 
     // the character from the user
-    editorAppendRow("", 0);
+    editorInsertRow(E.numrows,"", 0);
   }
   editorRowInsertChar(&E.row[E.cy], E.cx, c);
   // after taking the character, moving forward the cursor
   // to take the next character right after the previous one
   E.cx++;
+}
+
+void editorInsertNewLine() {
+  if (E.cx == 0) {
+    // if the cursor at the beginning of a line, then 
+    // pressing Enter will create a blank line before
+    // that line
+    editorInsertRow(E.cy, "", 0);
+  }
+  else {
+    erow *row = &E.row[E.cy];
+    // passing the characters of the right of cursor
+    // to the new line
+    editorInsertRow(E.cy+1, &row->chars[E.cx], row->size - E.cx);
+    row = &E.row[E.cy];
+    row->size = E.cx;
+    row->chars[row->size] = '\0';
+    editorUpdateRow(row);
+  }
+  E.cy++;
+  E.cx=0;
 }
 
 void editorDelChar() {
@@ -452,7 +477,7 @@ void editorOpen(char *filename) {
       // be redundant to include newline or carriage return
       len--;
     }
-    editorAppendRow(line, len);
+    editorInsertRow(E.numrows, line, len);
   }
   free(line);
   fclose(fp);
@@ -765,7 +790,7 @@ void editorProcessKeypress() {
   switch (c) {
     // case handling for "Enter" key
     case '\r':
-      /* TODO */
+      editorInsertNewLine();
       break;
 
     case CTRL_KEY('q'):
