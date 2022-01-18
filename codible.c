@@ -87,6 +87,8 @@ struct editorConfig E;
 /*** prototypes ***/
 
 void editorSetStatusMessage(const char *fmt, ...);
+void editorRefreshScreen();
+char *editorPrompt(char *prompt);
 
 /*** terminal ***/
 
@@ -486,7 +488,11 @@ void editorOpen(char *filename) {
 
 void editorSave() {
   if (E.filename == NULL) {
-    return;
+    E.filename = editorPrompt("Save as: %s (ESC to cancel)");
+    if (E.filename == NULL) {
+      editorSetStatusMessage("Save aborted");
+      return;
+    }
   }
   int len;
   char *buf = editorRowsToString(&len);
@@ -727,6 +733,51 @@ void editorSetStatusMessage (const char *fmt, ...) {
 }
 
 /*** input ***/
+
+char *editorPrompt(char *prompt) {
+  size_t buffersize = 128;
+  char *buffer = malloc(buffersize);
+  // initially the prompt is initialized as an empty string
+  size_t bufferlen = 0;
+  buffer[0] =  '\0';
+
+  while (1) {
+    editorSetStatusMessage(prompt, buffer);
+    editorRefreshScreen();
+    int c = editorReadKey();
+    if (c==DEL_KEY || c==CTRL_KEY('h') || c==BACKSPACE) {
+      if (bufferlen != 0) {
+        buffer[--bufferlen] = '\0';
+      }
+    }
+    // checking for Esc key, if pressed, then the input 
+    // prompt will disappear
+    else if (c == '\x1b') {
+      editorSetStatusMessage("");
+      free(buffer);
+      return NULL;
+    }
+    else if (c == '\r') {
+      if (bufferlen != 0) {
+        // when input is not empty and Enter key has been
+        // pressed, then the status message gets clear
+        editorSetStatusMessage("");
+        return buffer;
+      }
+    }
+    // checking the input is a printable character or not
+    else if (!iscntrl(c) && c<128) {
+      if (bufferlen == buffersize-1) {
+        // if bufferlen reaches the maximum capacity,
+        // we double the capacity and reallocating it
+        buffersize *= 2;
+        buffer = realloc(buffer, buffersize);
+      }
+      buffer[bufferlen++] = c;
+      buffer[bufferlen] = '\0';
+    }
+  }
+}
 
 void editorMoveCursor (int key) {
   // checking whether the cursor is in last line or not
