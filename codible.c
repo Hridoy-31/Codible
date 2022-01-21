@@ -21,7 +21,7 @@
 #include <sys/ioctl.h> 
 // ioctl(), TIOCGWINSZ, struct winsize reside in it.
 #include <string.h> // memcpy(), strlen(), 
-// strdup(), memmove(), strerror() reside in it
+// strdup(), memmove(), strerror(), strstr() reside in it
 #include <sys/types.h> // ssize_t resides in it
 #include <time.h> // time_t, time() reside in it
 #include <stdarg.h> // va_list, va_start(), va_end() reside in it
@@ -33,7 +33,7 @@
 #define CTRL_KEY(k) ((k) & 0x1f)
 #define CODIBLE_TAB_STOP 8
 // press Ctrl-Q 3 more times to quit the editor without saving
-#define KILO_QUIT_TIMES 3 
+#define CODIBLE_QUIT_TIMES 3 
 
 // mapping WASD keys with the arrow constants
 enum editorKey {
@@ -268,6 +268,20 @@ int editorRowCxToRx (erow *row, int cx) {
     rx++; // gets on the next tab stop
   } 
   return rx;
+}
+
+int editorRowRxToCx(erow *row, int rx) {
+  int current_rx=0,cx;
+  for (cx = 0; cx < row->size; cx++) {
+    if (row->chars[cx] == '\t') {
+      current_rx += (CODIBLE_TAB_STOP-1)-(current_rx%CODIBLE_TAB_STOP);
+    }
+    current_rx++;
+    if (current_rx > rx) {
+      return cx;
+    }
+  }
+  return cx;
 }
 
 void editorUpdateRow(erow *row) {
@@ -520,6 +534,31 @@ void editorSave() {
   free(buf);
   editorSetStatusMessage("Can't save !! I/O error: %s", 
     strerror(errno));
+}
+
+/*** find ***/
+
+void editorFind() {
+  char *query = editorPrompt("Search: %s (ESC to cancel)");
+  if (query == NULL) {
+    // pressed ESC to abort the search
+    return;
+  }
+  for (int i=0; i<E.numrows; i++) {
+    erow *row = &E.row[i];
+    // using strstr() to find if query is a substring of the 
+    // current row
+    char *match = strstr(row->render, query);
+    if (match) {
+      E.cy = i;
+      E.cx = editorRowRxToCx(row, match-row->render);
+      // the matching line will always be on top by setting 
+      // the rowoff very bottom of the file
+      E.rowoff = E.numrows;
+      break;
+    }
+  }
+  free(query);
 }
 
 /*** append buffer ***/
@@ -835,7 +874,7 @@ void editorMoveCursor (int key) {
 }
 
 void editorProcessKeypress() {
-  static int quit_times = KILO_QUIT_TIMES;
+  static int quit_times = CODIBLE_QUIT_TIMES;
   // process the keypress
   int c = editorReadKey();
   switch (c) {
@@ -870,6 +909,11 @@ void editorProcessKeypress() {
       if (E.cy < E.numrows) {
         E.cx = E.row[E.cy].size;
       }
+      break;
+
+    case CTRL_KEY('f'):
+      // search feature prompt
+      editorFind();
       break;
 
     case BACKSPACE:
@@ -925,7 +969,7 @@ void editorProcessKeypress() {
   }
   // by pressing any key other than Ctrl-Q, the quit_times
   // resets back to 3
-  quit_times = KILO_QUIT_TIMES;
+  quit_times = CODIBLE_QUIT_TIMES;
 }
 
 /*** initialization ***/
@@ -961,7 +1005,8 @@ int main(int argc, char *argv[])
   if (argc >= 2) {
     editorOpen(argv[1]);
   }
-  editorSetStatusMessage("HELP: Ctrl-S = Save | Ctrl-Q = Quit");
+  editorSetStatusMessage(
+    "HELP: Ctrl-S = Save | Ctrl-Q = Quit | Ctrl-F = Find");
   while (1) {
     editorRefreshScreen();
     editorProcessKeypress();
