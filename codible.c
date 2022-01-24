@@ -539,18 +539,51 @@ void editorSave() {
 /*** find ***/
 
 void editorFindCallBack(char *query, int key) {
+  // last match is the index in the row that have
+  // searched previous query
+  static int last_match = -1;
+  // direction 1 means forward search, 
+  // diredtion 2 means backward search
+  static int direction = 1;
   // stopping incremental search if the user pressed 
   // ENTER or ESC key
   if (key == '\r' || key == '\x1b') {
+    // resetting last_match and direction to get ready
+    // for next search operation
+    last_match = -1;
+    direction = 1;
     return;
   }
+  else if (key == ARROW_RIGHT || key == ARROW_DOWN) {
+    direction = 1;
+  }
+  else if (key == ARROW_LEFT || key == ARROW_UP) {
+    direction = -1;
+  }
+  else {
+    last_match = -1;
+    direction = 1;
+  }
+  if (last_match == -1) {
+    direction = 1;
+  }
+  // current is the current row we are searching
+  int current = last_match;
   for (int i=0; i<E.numrows; i++) {
-    erow *row = &E.row[i];
+    current = current + direction;
+    if (current == -1) {
+      current = E.numrows - 1;
+    }
+    else if (current == E.numrows) {
+      current = 0;
+    }
+    erow *row = &E.row[current];
     // using strstr() to find if query is a substring of the 
     // current row
     char *match = strstr(row->render, query);
     if (match) {
-      E.cy = i;
+      last_match = current;
+      E.cy = current;
       E.cx = editorRowRxToCx(row, match-row->render);
       // the matching line will always be on top by setting 
       // the rowoff very bottom of the file
@@ -566,7 +599,7 @@ void editorFind() {
   int saved_cy = E.cy;
   int saved_coloff = E.coloff;
   int saved_rowoff = E.rowoff;
-  char *query = editorPrompt("Search: %s (ESC to cancel)", editorFindCallBack);
+  char *query = editorPrompt("Search: %s (Use ESC/Arrows/ENTER)", editorFindCallBack);
   if (query) {
     free(query);
   }
