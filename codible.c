@@ -715,7 +715,28 @@ void editorDrawRows(struct abuf *ab) {
     if (len > E.screencolumns) {
       len = E.screencolumns;
     }
-    abAppend(ab, &E.row[filerow].render[E.coloff], len);
+    char *c = &E.row[filerow].render[E.coloff];
+    for (int j=0; j<len; j++) {
+      if (isdigit(c[j])) {
+        // According to ANSI escape codes, text colors can
+        // be set by using codes 30 to 37 with the m commands
+        // in the escape sequence
+
+        // The color table says black=0, red=1, ..... white=7
+
+        // setting text color to red by passing 31 with the
+        // m command in the escape sequence
+        abAppend(ab, "\x1b[31m", 5);
+        abAppend(ab, &c[j], 1);
+        // setting the default text color (back to normal)
+        // by passing 39 with the m command in the 
+        // escape sequence
+        abAppend(ab, "\x1b[39m", 5);
+      }
+      else {
+        abAppend(ab, &c[j], 1);
+      }
+    }
   }   
     abAppend(ab, "\x1b[K", 3);
     // [K escape sequence will clear each line as we redraw them
