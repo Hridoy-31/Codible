@@ -21,7 +21,8 @@
 #include <sys/ioctl.h> 
 // ioctl(), TIOCGWINSZ, struct winsize reside in it.
 #include <string.h> // memcpy(), strlen(), 
-// strdup(), memmove(), strerror(), strstr() reside in it
+// strdup(), memmove(), strerror(), strstr(), memset()
+// reside in it
 #include <sys/types.h> // ssize_t resides in it
 #include <time.h> // time_t, time() reside in it
 #include <stdarg.h> // va_list, va_start(), va_end() reside in it
@@ -50,17 +51,25 @@ enum editorKey {
   PAGE_DOWN // 1532
 };
 
+enum editorHighlight {
+  HL_NORMAL = 0,
+  HL_NUMBER
+};
+
 /*** data ***/
 
+// editor row
 typedef struct erow {
-  // editor row
-  int size;
   // the size of rendering characters
+  int size;
   int rsize;
-  char *chars;
   // store a line of text as a pointer
-  char *render;
+  char *chars;
   // for rendering the non-printable characters;
+  char *render;
+  // highlighted array
+  unsigned char *highlight;
+
 } erow;
 
 struct editorConfig {
@@ -252,6 +261,27 @@ int getWindowSize(int *rows, int *columns) {
   }
 }
 
+/*** syntax highlighting ***/
+
+void editorUpdateSyntax(erow *row) {
+  row->highlight = realloc(row->highlight, row->rsize);
+  memset(row->highlight, HL_NORMAL, row->rsize);
+  for (int i=0; i<row->rsize; i++) {
+    if (isdigit(row->render[i])) {
+      row->highlight[i] = HL_NUMBER;
+    }
+  }
+}
+
+int editorSyntaxToColor(int highlight) {
+  switch (highlight) {
+    case HL_NUMBER:
+      return 31;
+    default:
+      return 37;
+  }
+}
+
 /*** row operations ***/
 
 int editorRowCxToRx (erow *row, int cx) {
@@ -313,6 +343,7 @@ void editorUpdateRow(erow *row) {
   }
   row->render[index] = '\0';
   row->rsize = index;
+  editorUpdateSyntax(row);
 }
 
 void editorInsertRow (int at, char *s, size_t len) {
@@ -330,6 +361,7 @@ void editorInsertRow (int at, char *s, size_t len) {
   // and the rendering string is NULL
   E.row[at].rsize = 0;
   E.row[at].render = NULL;
+  E.row[at].highlight = NULL;
   editorUpdateRow(&E.row[at]);
   E.numrows++;
   E.dirty++;
@@ -338,6 +370,7 @@ void editorInsertRow (int at, char *s, size_t len) {
 void editorFreeRow(erow *row) {
   free(row->render);
   free(row->chars);
+  free(row->highlight);
 }
 
 void editorDelRow(int at) {
@@ -716,31 +749,34 @@ void editorDrawRows(struct abuf *ab) {
       len = E.screencolumns;
     }
     char *c = &E.row[filerow].render[E.coloff];
+    unsigned char *highlight = &E.row[filerow].highlight[E.coloff];
+    int current_color = -1;
     for (int j=0; j<len; j++) {
-      if (isdigit(c[j])) {
-        // According to ANSI escape codes, text colors can
-        // be set by using codes 30 to 37 with the m commands
-        // in the escape sequence
-
-        // The color table says black=0, red=1, ..... white=7
-
-        // setting text color to red by passing 31 with the
-        // m command in the escape sequence
-        abAppend(ab, "\x1b[31m", 5);
+      if (highlight[j] == HL_NORMAL) {
+        if (current_color != -1) {
+          abAppend(ab, "\x1b[39m", 5);
+          current_color = -1;
+        }
         abAppend(ab, &c[j], 1);
-        // setting the default text color (back to normal)
-        // by passing 39 with the m command in the 
-        // escape sequence
-        abAppend(ab, "\x1b[39m", 5);
       }
       else {
+        int color = editorSyntaxToColor(highlight[j]);
+        if (color != current_color) {
+          current_color = color;
+          char buffer[16];
+          int colorlen = snprintf(buffer, sizeof(buffer),
+            "\x1b[%dm", color);
+          abAppend(ab, buffer, colorlen);
+        }
         abAppend(ab, &c[j], 1);
       }
     }
+    // resetting the text color to default
+    abAppend(ab, "\x1b[39m", 5);
   }   
-    abAppend(ab, "\x1b[K", 3);
-    // [K escape sequence will clear each line as we redraw them
-    abAppend(ab, "\r\n", 2);
+  abAppend(ab, "\x1b[K", 3);
+  // [K escape sequence will clear each line as we redraw them
+  abAppend(ab, "\r\n", 2);
   }
 }
 
