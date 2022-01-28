@@ -53,7 +53,8 @@ enum editorKey {
 
 enum editorHighlight {
   HL_NORMAL = 0,
-  HL_NUMBER
+  HL_NUMBER,
+  HL_MATCH
 };
 
 /*** data ***/
@@ -276,7 +277,11 @@ void editorUpdateSyntax(erow *row) {
 int editorSyntaxToColor(int highlight) {
   switch (highlight) {
     case HL_NUMBER:
+    // digits coloring with red
       return 31;
+    case HL_MATCH:
+    // matched string coloring with blue
+      return 34;
     default:
       return 37;
   }
@@ -621,6 +626,8 @@ void editorFindCallBack(char *query, int key) {
       // the matching line will always be on top by setting 
       // the rowoff very bottom of the file
       E.rowoff = E.numrows;
+      memset(&row->highlight[match - row->render], 
+        HL_MATCH, strlen(query));
       break;
     }
   }
