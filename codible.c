@@ -583,6 +583,14 @@ void editorFindCallBack(char *query, int key) {
   // direction 1 means forward search, 
   // diredtion 2 means backward search
   static int direction = 1;
+  static int saved_highlight_line;
+  static char *saved_highlight = NULL;
+  if (saved_highlight) {
+    memcpy(E.row[saved_highlight_line].highlight, saved_highlight, 
+      E.row[saved_highlight_line].rsize);
+    free(saved_highlight);
+    saved_highlight = NULL;
+  }
   // stopping incremental search if the user pressed 
   // ENTER or ESC key
   if (key == '\r' || key == '\x1b') {
@@ -626,6 +634,9 @@ void editorFindCallBack(char *query, int key) {
       // the matching line will always be on top by setting 
       // the rowoff very bottom of the file
       E.rowoff = E.numrows;
+      saved_highlight_line = current;
+      saved_highlight = malloc(row->rsize);
+      memcpy(saved_highlight, row->highlight, row->rsize);
       memset(&row->highlight[match - row->render], 
         HL_MATCH, strlen(query));
       break;
