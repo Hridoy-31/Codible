@@ -22,7 +22,7 @@
 // ioctl(), TIOCGWINSZ, struct winsize reside in it.
 #include <string.h> // memcpy(), strlen(), 
 // strdup(), memmove(), strerror(), strstr(), memset()
-// reside in it
+// strchr() reside in it
 #include <sys/types.h> // ssize_t resides in it
 #include <time.h> // time_t, time() reside in it
 #include <stdarg.h> // va_list, va_start(), va_end() reside in it
@@ -264,13 +264,32 @@ int getWindowSize(int *rows, int *columns) {
 
 /*** syntax highlighting ***/
 
+int is_separator (int c) {
+  // if the string doesn't contain the characters
+  // provided in the strchr(), the function will
+  // return NULL
+  return (isspace(c) || c=='\0' || 
+    strchr(",\".()+-/*=~%<>[];", c) != NULL);
+}
+
 void editorUpdateSyntax(erow *row) {
   row->highlight = realloc(row->highlight, row->rsize);
   memset(row->highlight, HL_NORMAL, row->rsize);
-  for (int i=0; i<row->rsize; i++) {
-    if (isdigit(row->render[i])) {
+  // considering the starting of a line as a separator
+  int i = 0, prev_separator = 1;
+  while (i < row->rsize) {
+    char c = row->render[i];
+    unsigned char prev_highlight = (i>0) ? row->highlight[i-1] : 
+      HL_NORMAL;
+    if ((isdigit(c) && (prev_separator||prev_highlight==HL_NUMBER)) 
+        || (c == '.' && prev_highlight == HL_NUMBER)) {
       row->highlight[i] = HL_NUMBER;
+      i++;
+      prev_separator = 0;
+      continue;
     }
+    prev_separator = is_separator(c);
+    i++;
   }
 }
 
