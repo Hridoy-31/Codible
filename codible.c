@@ -22,7 +22,7 @@
 // ioctl(), TIOCGWINSZ, struct winsize reside in it.
 #include <string.h> // memcpy(), strlen(), 
 // strdup(), memmove(), strerror(), strstr(), memset()
-// strchr() reside in it
+// strchr(), strrchr(), strcmp() reside in it
 #include <sys/types.h> // ssize_t resides in it
 #include <time.h> // time_t, time() reside in it
 #include <stdarg.h> // va_list, va_start(), va_end() reside in it
@@ -57,7 +57,15 @@ enum editorHighlight {
   HL_MATCH
 };
 
+#define HL_HIGHLIGHT_NUMBERS (1<<0)
+
 /*** data ***/
+
+struct editorSyntax {
+  char *filetype;
+  char **filematch;
+  int flags;
+};
 
 // editor row
 typedef struct erow {
@@ -89,10 +97,25 @@ struct editorConfig {
   char *filename;
   char statusmessage[80];
   time_t statusmessage_time;
+  struct editorSyntax *syntax;
   struct termios original;
 };
 
 struct editorConfig E;
+
+/*** filetypes ***/
+
+char *C_HL_extensions[] = {".c", ".h", ".cpp", NULL};
+// highlight database;
+struct editorSyntax HLDB[] = {
+  {
+    "c",
+    C_HL_extensions,
+    HL_HIGHLIGHT_NUMBERS
+  },
+};
+
+#define HLDB_ENTRIES (sizeof(HLDB) / sizeof(HLDB[0]))
 
 /*** prototypes ***/
 
@@ -275,19 +298,26 @@ int is_separator (int c) {
 void editorUpdateSyntax(erow *row) {
   row->highlight = realloc(row->highlight, row->rsize);
   memset(row->highlight, HL_NORMAL, row->rsize);
+  if (E.syntax == NULL) {
+    return;
+  }
   // considering the starting of a line as a separator
   int i = 0, prev_separator = 1;
   while (i < row->rsize) {
     char c = row->render[i];
     unsigned char prev_highlight = (i>0) ? row->highlight[i-1] : 
       HL_NORMAL;
-    if ((isdigit(c) && (prev_separator||prev_highlight==HL_NUMBER)) 
-        || (c == '.' && prev_highlight == HL_NUMBER)) {
-      row->highlight[i] = HL_NUMBER;
-      i++;
-      prev_separator = 0;
-      continue;
+    if (E.syntax->flags && HL_HIGHLIGHT_NUMBERS) {
+      if ((isdigit(c) && 
+            (prev_separator||prev_highlight==HL_NUMBER)) 
+            || (c == '.' && prev_highlight == HL_NUMBER)) {
+        row->highlight[i] = HL_NUMBER;
+        i++;
+        prev_separator = 0;
+        continue;
+      }
     }
+    
     prev_separator = is_separator(c);
     i++;
   }
@@ -303,6 +333,32 @@ int editorSyntaxToColor(int highlight) {
       return 34;
     default:
       return 37;
+  }
+}
+
+void editorSelectSyntaxHighlight() {
+  E.syntax = NULL;
+  if (E.filename == NULL) {
+    return;
+  }
+  //strrchr() returns a pointer to the last occurance of
+  // a character in a string
+  char *ext = strrchr(E.filename, '.');
+  for(unsigned int j=0; j<HLDB_ENTRIES; j++) {
+    struct editorSyntax *s = &HLDB[j];
+    unsigned int i = 0;
+    while(s->filematch[i]) {
+      int is_ext = (s->filematch[i][0] == '.');
+      if ((is_ext && ext && !strcmp(ext, s->filematch[i])) || 
+            (!is_ext && strstr(E.filename, s->filematch[i]))) {
+        E.syntax = s;
+        for (int filerow = 0; filerow < E.numrows; filerow++) {
+          editorUpdateSyntax(&E.row[filerow]);
+        }
+        return;
+      }
+      i++;
+    }
   }
 }
 
@@ -531,6 +587,7 @@ char *editorRowsToString(int *buflen) {
 void editorOpen(char *filename) {
   free(E.filename);
   E.filename = strdup(filename);
+  editorSelectSyntaxHighlight();
   // taking a filename & opens it for reading by fopen()
   FILE *fp = fopen(filename, "r");
   if (!fp) {
@@ -564,6 +621,7 @@ void editorSave() {
       editorSetStatusMessage("Save aborted");
       return;
     }
+    editorSelectSyntaxHighlight();
   }
   int len;
   char *buf = editorRowsToString(&len);
@@ -825,7 +883,8 @@ void editorDrawStatusBar (struct abuf *ab) {
   int len = snprintf(status, sizeof(status), "%.20s - %d lines %s",
     E.filename ? E.filename : "[No Name]", E.numrows,
     E.dirty ? "(modified)" : "");
-  int rlen = snprintf(rstatus, sizeof(rstatus), "%d/%d",
+  int rlen = snprintf(rstatus, sizeof(rstatus), "%s | %d/%d",
+    E.syntax ? E.syntax->filetype: "no filetype", 
     E.cy+1, E.numrows);
   // restricting the characters to remain in status bar
   if (len > E.screencolumns) {
@@ -1142,6 +1201,7 @@ void initialEditor() {
   E.filename = NULL;
   E.statusmessage[0] = '\0';
   E.statusmessage_time = 0;
+  E.syntax = NULL;
   if (getWindowSize(&E.screenrows, &E.screencolumns)==-1) {
     // exception handling
     die("getWindowSize");
