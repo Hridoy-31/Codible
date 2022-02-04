@@ -53,11 +53,13 @@ enum editorKey {
 
 enum editorHighlight {
   HL_NORMAL = 0,
+  HL_STRING,
   HL_NUMBER,
   HL_MATCH
 };
 
 #define HL_HIGHLIGHT_NUMBERS (1<<0)
+#define HL_HIGHLIGHT_STRINGS (1<<1)
 
 /*** data ***/
 
@@ -111,7 +113,7 @@ struct editorSyntax HLDB[] = {
   {
     "c",
     C_HL_extensions,
-    HL_HIGHLIGHT_NUMBERS
+    HL_HIGHLIGHT_NUMBERS | HL_HIGHLIGHT_STRINGS
   },
 };
 
@@ -292,7 +294,7 @@ int is_separator (int c) {
   // provided in the strchr(), the function will
   // return NULL
   return (isspace(c) || c=='\0' || 
-    strchr(",\".()+-/*=~%<>[];", c) != NULL);
+    strchr(",.()+-/*=~%<>[];", c) != NULL);
 }
 
 void editorUpdateSyntax(erow *row) {
@@ -302,11 +304,35 @@ void editorUpdateSyntax(erow *row) {
     return;
   }
   // considering the starting of a line as a separator
-  int i = 0, prev_separator = 1;
+  int i = 0, prev_separator = 1, in_string = 0;
   while (i < row->rsize) {
     char c = row->render[i];
     unsigned char prev_highlight = (i>0) ? row->highlight[i-1] : 
       HL_NORMAL;
+    if (E.syntax->flags && HL_HIGHLIGHT_STRINGS) {
+      if (in_string) {
+        row->highlight[i] = HL_STRING;
+        if (c == '\\' && i+1 < row->rsize) {
+          row->highlight[i+1] = HL_STRING;
+          i = i + 2;
+          continue;
+        }
+        if (c == in_string) {
+          in_string = 0;
+        }
+        i++;
+        prev_separator = 1;
+        continue;
+      }
+      else {
+        if (c=='"' || c=='\'') {
+          in_string = c;
+          row->highlight[i] = HL_STRING;
+          i++;
+          continue;
+        }
+      }
+    }
     if (E.syntax->flags && HL_HIGHLIGHT_NUMBERS) {
       if ((isdigit(c) && 
             (prev_separator||prev_highlight==HL_NUMBER)) 
@@ -325,6 +351,9 @@ void editorUpdateSyntax(erow *row) {
 
 int editorSyntaxToColor(int highlight) {
   switch (highlight) {
+    case HL_STRING:
+      // strings coloring with magenta
+      return 35;
     case HL_NUMBER:
     // digits coloring with red
       return 31;
