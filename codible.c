@@ -22,7 +22,7 @@
 // ioctl(), TIOCGWINSZ, struct winsize reside in it.
 #include <string.h> // memcpy(), strlen(), 
 // strdup(), memmove(), strerror(), strstr(), memset()
-// strchr(), strrchr(), strcmp() reside in it
+// strchr(), strrchr(), strcmp(), strncmp() reside in it
 #include <sys/types.h> // ssize_t resides in it
 #include <time.h> // time_t, time() reside in it
 #include <stdarg.h> // va_list, va_start(), va_end() reside in it
@@ -53,6 +53,7 @@ enum editorKey {
 
 enum editorHighlight {
   HL_NORMAL = 0,
+  HL_COMMENT,
   HL_STRING,
   HL_NUMBER,
   HL_MATCH
@@ -66,6 +67,7 @@ enum editorHighlight {
 struct editorSyntax {
   char *filetype;
   char **filematch;
+  char *singleline_comment_start;
   int flags;
 };
 
@@ -113,6 +115,7 @@ struct editorSyntax HLDB[] = {
   {
     "c",
     C_HL_extensions,
+    "//",
     HL_HIGHLIGHT_NUMBERS | HL_HIGHLIGHT_STRINGS
   },
 };
@@ -303,12 +306,22 @@ void editorUpdateSyntax(erow *row) {
   if (E.syntax == NULL) {
     return;
   }
+  char *scs = E.syntax->singleline_comment_start;
+  int scs_len = scs ? strlen(scs) : 0;
   // considering the starting of a line as a separator
   int i = 0, prev_separator = 1, in_string = 0;
   while (i < row->rsize) {
     char c = row->render[i];
     unsigned char prev_highlight = (i>0) ? row->highlight[i-1] : 
       HL_NORMAL;
+    if (scs_len && !in_string) {
+      // using strncmp() to check if this character
+      // is the start of a single line comment
+      if (!strncmp(&row->render[i], scs, scs_len)) {
+        memset(&row->highlight[i], HL_COMMENT, row->rsize-i);
+        break;
+      }
+    }
     if (E.syntax->flags && HL_HIGHLIGHT_STRINGS) {
       if (in_string) {
         row->highlight[i] = HL_STRING;
@@ -351,6 +364,9 @@ void editorUpdateSyntax(erow *row) {
 
 int editorSyntaxToColor(int highlight) {
   switch (highlight) {
+    case HL_COMMENT:
+      // comments coloring with cyan
+      return 36;
     case HL_STRING:
       // strings coloring with magenta
       return 35;
