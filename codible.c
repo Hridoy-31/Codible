@@ -54,6 +54,8 @@ enum editorKey {
 enum editorHighlight {
   HL_NORMAL = 0,
   HL_COMMENT,
+  HL_KEYWORD1,
+  HL_KEYWORD2,
   HL_STRING,
   HL_NUMBER,
   HL_MATCH
@@ -67,6 +69,7 @@ enum editorHighlight {
 struct editorSyntax {
   char *filetype;
   char **filematch;
+  char **keywords;
   char *singleline_comment_start;
   int flags;
 };
@@ -110,11 +113,22 @@ struct editorConfig E;
 /*** filetypes ***/
 
 char *C_HL_extensions[] = {".c", ".h", ".cpp", NULL};
+// C specific keywords are Null terminated & 
+// common keywords are pipe terminated
+char *C_HL_keywords[] = {
+  "switch", "if", "while", "for", "break", "continue", "return",
+  "else", "struct", "union", "typedef", "static", "enum", "class",
+  "case", 
+
+  "int|", "long|", "double|", "float|", "char|", "unsigned|",
+  "signed|", "void|", NULL
+};
 // highlight database;
 struct editorSyntax HLDB[] = {
   {
     "c",
     C_HL_extensions,
+    C_HL_keywords,
     "//",
     HL_HIGHLIGHT_NUMBERS | HL_HIGHLIGHT_STRINGS
   },
@@ -306,6 +320,7 @@ void editorUpdateSyntax(erow *row) {
   if (E.syntax == NULL) {
     return;
   }
+  char **keywords = E.syntax->keywords;
   char *scs = E.syntax->singleline_comment_start;
   int scs_len = scs ? strlen(scs) : 0;
   // considering the starting of a line as a separator
@@ -356,7 +371,27 @@ void editorUpdateSyntax(erow *row) {
         continue;
       }
     }
-    
+    if (prev_separator) {
+      int j;
+      for (j=0; keywords[j]; j++) {
+        int klen = strlen(keywords[j]);
+        int kw2 = keywords[j][klen-1] == '|';
+        if (kw2) {
+          klen--;
+        }
+        if (!strncmp(&row->render[i], keywords[j], klen) && 
+          is_separator(row->render[i+klen])) {
+            memset(&row->highlight[i], kw2 ? HL_KEYWORD2 :
+              HL_KEYWORD1, klen);
+            i += klen;
+            break;
+          }
+      }
+      if (keywords[j] != NULL) {
+        prev_separator = 0;
+        continue;
+      }
+    }
     prev_separator = is_separator(c);
     i++;
   }
@@ -367,6 +402,12 @@ int editorSyntaxToColor(int highlight) {
     case HL_COMMENT:
       // comments coloring with cyan
       return 36;
+    case HL_KEYWORD1:
+      // keywords coloring with yellow
+      return 33;
+    case HL_KEYWORD2:
+      // keywords coloring with green
+      return 32;
     case HL_STRING:
       // strings coloring with magenta
       return 35;
