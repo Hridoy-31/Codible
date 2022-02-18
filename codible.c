@@ -933,7 +933,20 @@ void editorDrawRows(struct abuf *ab) {
     unsigned char *highlight = &E.row[filerow].highlight[E.coloff];
     int current_color = -1;
     for (int j=0; j<len; j++) {
-      if (highlight[j] == HL_NORMAL) {
+      if (iscntrl(c[j])) {
+        char sym = (c[j] <= 26) ? '@' + c[j] : '?';
+        // switching to inverted colors
+        abAppend(ab, "\x1b[7m", 4);
+        abAppend(ab, &sym, 1);
+        // reverting back to normal colors
+        abAppend(ab, "\x1b[m", 3);
+        if (current_color != -1) {
+          char buf[16];
+          int clen = snprintf(buf,sizeof(buf),"\x1b[%dm",current_color);
+          abAppend(ab, buf, clen);
+        }
+      }
+      else if (highlight[j] == HL_NORMAL) {
         if (current_color != -1) {
           abAppend(ab, "\x1b[39m", 5);
           current_color = -1;
