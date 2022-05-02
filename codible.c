@@ -12,18 +12,22 @@
 #include <stdlib.h> 
 // atexit(), exit(), realloc(), free(), malloc() reside in it 
 #include <termios.h> 
-// struct termios, tcgetattr(), tcsetattr(), ECHO, TCSAFLUSH, 
-// ICANON, ISIG, IXON. IEXTEN, ICRNL, OPOST, BRKINT, INPCK, 
-// ISTRIP, CS8, VMIN, VTIME reside in it
+/* struct termios, tcgetattr(), tcsetattr(), ECHO, TCSAFLUSH, 
+   ICANON, ISIG, IXON. IEXTEN, ICRNL, OPOST, BRKINT, INPCK, 
+   ISTRIP, CS8, VMIN, VTIME reside in it
+*/
 #include <unistd.h> 
-// read(), STDIN_FILENO, write(), STDOUT_FILENO
-// ftruncate(), close() reside in it
+/* read(), STDIN_FILENO, write(), STDOUT_FILENO
+   ftruncate(), close() reside in it
+*/
 #include <errno.h> // errno, EAGAIN reside in it
 #include <sys/ioctl.h> 
 // ioctl(), TIOCGWINSZ, struct winsize reside in it.
-#include <string.h> // memcpy(), strlen(), 
-// strdup(), memmove(), strerror(), strstr(), memset()
-// strchr(), strrchr(), strcmp(), strncmp() reside in it
+#include <string.h> 
+/* memcpy(), strlen(), strdup(), memmove(), strerror(), 
+   strstr(), memset(), strchr(), strrchr(), strcmp(), 
+   strncmp() reside in it
+*/
 #include <sys/types.h> // ssize_t resides in it
 #include <time.h> // time_t, time() reside in it
 #include <stdarg.h> // va_list, va_start(), va_end() reside in it
@@ -102,12 +106,9 @@ struct editorConfig {
   int coloff;
   int screenrows;
   int screencolumns;
-  int numrows;
-  // number of rows to be displayed
-  // making erow arrays for taking multiple lines
-  erow *row;
-  // identify if the buffer is changed
-  int dirty;
+  int numrows; // number of rows to be displayed
+  erow *row;  // making erow arrays for taking multiple lines
+  int dirty;  // identify if the buffer is changed
   char *filename;
   char statusmessage[80];
   time_t statusmessage_time;
@@ -120,8 +121,9 @@ struct editorConfig E;
 /*** filetypes ***/
 
 char *C_HL_extensions[] = {".c", ".h", ".cpp", NULL};
-// C specific keywords are Null terminated & 
-// common keywords are pipe terminated
+/* C specific keywords are Null terminated & 
+   common keywords are pipe terminated
+*/
 char *C_HL_keywords[] = {
   "switch", "if", "while", "for", "break", "continue", "return",
   "else", "struct", "union", "typedef", "static", "enum", "class",
@@ -174,12 +176,13 @@ void enableRawMode() {
 
   struct termios raw = E.original;
   raw.c_iflag &= ~(BRKINT | ICRNL | INPCK | ISTRIP | IXON); 
-  // IXON used to ignore XOFF and XON & ICRNL used to handle 
-  // Carriage Return (CR) and New Line (NL), 
+  /* IXON used to ignore XOFF and XON & ICRNL used to handle 
+     Carriage Return (CR) and New Line (NL), 
   // BRKINT used to handle SIGINT, 
   // INPCK used to handle Parity Check, 
   // ISTRIP used to handle 8-bit stripping, 
   // CS8 used to handle character size (CS) to 8 bits per byte
+  */
   raw.c_oflag &= ~(OPOST); 
   // OPOST used to handle post-processing output
   raw.c_cflag |= ~(CS8);
@@ -206,8 +209,9 @@ int editorReadKey() {
   }
   if (c=='\x1b') {
     char seq[3];
-    // checking the escape sequence for determining "Escape" or
-    // "Arrow" keys.
+    /* checking the escape sequence for determining "Escape" or
+       "Arrow" keys.
+    */
     if (read(STDIN_FILENO, &seq[0], 1) != 1) {
       return '\x1b';
     }
@@ -221,9 +225,10 @@ int editorReadKey() {
 	  return '\x1b';
 	}
 	if (seq[2] == '~') {
-	  // digit 5 for page up, 6 for page down
-	  // digit 1 or 7 for Home, 4 or 8 for End
-	  // digit 3 for Delete
+	  /* digit 5 for page up, 6 for page down
+	     digit 1 or 7 for Home, 4 or 8 for End
+	     digit 3 for Delete
+    */
 	  switch (seq[1]) {
 	  case '1' : return HOME_KEY;
 	  case '3' : return DEL_KEY;
@@ -248,8 +253,9 @@ int editorReadKey() {
       }
     }
     else if (seq[0]=='O') {
-      // handling Home & End keys escape sequence starting with O 
-      // (ooo, not zero)
+      /* handling Home & End keys escape sequence starting with O 
+         (ooo, not zero)
+      */
       switch (seq[1]) {
       case 'H' : return HOME_KEY;
       case 'F' : return END_KEY;
@@ -283,9 +289,10 @@ int getCursorPosition(int *rows, int *columns) {
     return -1;
   }
   if (sscanf(&buffer[2], "%d;%d", rows, columns) != 2) {
-    // passing the third character of buffer because of skipping
-    // '\x1b' & '[' characters.
-    // sscanf() will parse the integers separated by the semicolon ;
+    /* passing the third character of buffer because of skipping
+       '\x1b' & '[' characters.
+       sscanf() will parse the integers separated by the semicolon ;
+    */
     return -1;
   }
   return 0;
@@ -296,10 +303,11 @@ int getWindowSize(int *rows, int *columns) {
   // the terminal size will initially stored here.
   if(ioctl(STDOUT_FILENO, TIOCGWINSZ, &ws)==-1 || ws.ws_col==0) {
     if (write(STDOUT_FILENO, "\x1b[999C\x1b[999B", 12)!=12) {
-      // 999C command used for cursor to go forward (right)
-      // 999B command used for cursor to go downward (down);
-      // these two commands are used for finding the bottom-right
-      // position of the cursor.
+      /* 999C command used for cursor to go forward (right)
+         999B command used for cursor to go downward (down);
+         these two commands are used for finding the bottom-right
+         position of the cursor.
+      */
       return -1;
     }
     return getCursorPosition(rows, columns);
@@ -314,9 +322,10 @@ int getWindowSize(int *rows, int *columns) {
 /*** syntax highlighting ***/
 
 int is_separator (int c) {
-  // if the string doesn't contain the characters
-  // provided in the strchr(), the function will
-  // return NULL
+  /* if the string doesn't contain the characters
+     provided in the strchr(), the function will
+     return NULL
+  */
   return (isspace(c) || c=='\0' || 
     strchr(",.()+-/*=~%<>[];", c) != NULL);
 }
@@ -342,8 +351,9 @@ void editorUpdateSyntax(erow *row) {
     unsigned char prev_highlight = (i>0) ? row->highlight[i-1] : 
       HL_NORMAL;
     if (scs_len && !in_string && !in_comment) {
-      // using strncmp() to check if this character
-      // is the start of a single line comment
+      /* using strncmp() to check if this character
+         is the start of a single line comment
+      */
       if (!strncmp(&row->render[i], scs, scs_len)) {
         memset(&row->highlight[i], HL_COMMENT, row->rsize-i);
         break;
@@ -353,8 +363,7 @@ void editorUpdateSyntax(erow *row) {
       if (in_comment) {
         row->highlight[i] = HL_MLCOMMENT;
         if (!strncmp(&row->render[i], mce, mce_len)) {
-          // checking if we are at the end of a multi line
-          // comment
+          // checking if we are at the end of a multi line comment
           memset(&row->highlight[i], HL_MLCOMMENT, mce_len);
           i = i+mce_len;
           in_comment = 0;
@@ -367,8 +376,7 @@ void editorUpdateSyntax(erow *row) {
         }
       }
       else if (!strncmp(&row->render[i], mcs, mcs_len)) {
-        // checking if we are at the beginning of a 
-        // multi line comment
+        // checking if we are at the beginning of a multi line comment
         memset(&row->highlight[i], HL_MLCOMMENT, mcs_len);
         i = i+mcs_len;
         in_comment = 1; // setting in_comment to TRUE
@@ -434,8 +442,7 @@ void editorUpdateSyntax(erow *row) {
     i++;
   }
   int changed = (row->hl_open_comment != in_comment);
-  // Setting whether the row ended as an unclosed multi line
-  // comment or not
+  // Setting whether the row ended as an unclosed multi line comment or not
   row->hl_open_comment = in_comment;
   if (changed && row->index + 1 < E.numrows) {
     editorUpdateSyntax(&E.row[row->index + 1]);
@@ -446,8 +453,7 @@ int editorSyntaxToColor(int highlight) {
   switch (highlight) {
     case HL_COMMENT:
     case HL_MLCOMMENT:
-      // single line comments & multi line comments
-      // coloring with cyan
+      // single line comments & multi line comments coloring with cyan
       return 36;
     case HL_KEYWORD1:
       // keywords coloring with yellow
@@ -474,8 +480,9 @@ void editorSelectSyntaxHighlight() {
   if (E.filename == NULL) {
     return;
   }
-  //strrchr() returns a pointer to the last occurance of
-  // a character in a string
+  /* strrchr() returns a pointer to the last occurance of
+     a character in a string
+  */
   char *ext = strrchr(E.filename, '.');
   for(unsigned int j=0; j<HLDB_ENTRIES; j++) {
     struct editorSyntax *s = &HLDB[j];
@@ -502,11 +509,12 @@ int editorRowCxToRx (erow *row, int cx) {
   for (int j=0; j<cx; j++) {
     if (row->chars[j] == '\t') {
       rx = rx + (CODIBLE_TAB_STOP - 1) - (rx % CODIBLE_TAB_STOP);
-      // (rx % CODIBLE_TAB_STOP) = how many columns to the right
-      // of the last tab stop
-      // (CODIBLE_TAB_STOP - 1) = how many columns to the left
-      // of the next tab stop
-      // Added these with rx to get to the next tab stop
+      /* (rx % CODIBLE_TAB_STOP) = how many columns to the right
+         of the last tab stop
+         (CODIBLE_TAB_STOP - 1) = how many columns to the left
+         of the next tab stop
+         Added these with rx to get to the next tab stop
+      */
     }
     rx++; // gets on the next tab stop
   } 
@@ -536,13 +544,15 @@ void editorUpdateRow(erow *row) {
     }
   }
   free(row->render);
-  // the maximum number of characters needed
-  // for a tab is 8
+  /* the maximum number of characters needed
+     for a tab is 8
+  */
   row->render = malloc(row->size + tabs*(CODIBLE_TAB_STOP-1) + 1);
   int index = 0;
   for (int j=0; j<row->size; j++) {
-    // if a tab is found, replace it with a space
-    // until the tab stop location
+    /* if a tab is found, replace it with a space
+       until the tab stop location
+    */
     if (row->chars[j] == '\t') {
       row->render[index++] = ' ';
       // tab stop location can be divided by 8
@@ -567,8 +577,9 @@ void editorInsertRow (int at, char *s, size_t len) {
   E.row = realloc(E.row, sizeof(erow)*(E.numrows + 1));
   memmove(&E.row[at+1], &E.row[at], sizeof(erow)*(E.numrows-at));
   for (int j=at+1; j<=E.numrows; j++) {
-    // updating index of the row because of the insertion
-    // of the new row
+    /* updating index of the row because of the insertion
+       of the new row
+    */
     E.row[j].index++;
   }
   E.row[at].index = at;
@@ -576,8 +587,9 @@ void editorInsertRow (int at, char *s, size_t len) {
   E.row[at].chars = malloc(len + 1);
   memcpy(E.row[at].chars, s, len);
   E.row[at].chars[len] = '\0';
-  // Initializing the rendering size is 0 
-  // and the rendering string is NULL
+  /* Initializing the rendering size is 0 
+     and the rendering string is NULL
+  */
   E.row[at].rsize = 0;
   E.row[at].render = NULL;
   E.row[at].highlight = NULL;
@@ -600,8 +612,9 @@ void editorDelRow(int at) {
   editorFreeRow(&E.row[at]);
   memmove(&E.row[at], &E.row[at+1], sizeof(erow)*(E.numrows-at-1));
   for (int j=at; j<E.numrows-1; j++) {
-    // Updating index of the row because of the deletion
-    // of an existing row
+    /* Updating index of the row because of the deletion
+       of an existing row
+    */
     E.row[j].index--;
   }
   E.numrows--;
@@ -613,8 +626,9 @@ void editorRowInsertChar(erow *row, int at, int c) {
     at = row->size;
   }
   row->chars = realloc(row->chars, row->size + 2);
-  // memmove is safe to use than memcpy when source & 
-  // destination of an array overlaps with each other 
+  /* memmove is safe to use than memcpy when source & 
+     destination of an array overlaps with each other 
+  */
   memmove(&row->chars[at+1], &row->chars[at], row->size - at+1);
   row->size++;
   row->chars[at] = c;
@@ -650,27 +664,31 @@ void editorRowDelChar(erow *row, int at) {
 
 void editorInsertChar (int c) {
   if (E.cy == E.numrows) {
-    // appending a blank row after the end of a line to take 
-    // the character from the user
+    /* appending a blank row after the end of a line to take 
+       the character from the user
+    */
     editorInsertRow(E.numrows,"", 0);
   }
   editorRowInsertChar(&E.row[E.cy], E.cx, c);
-  // after taking the character, moving forward the cursor
-  // to take the next character right after the previous one
+  /* after taking the character, moving forward the cursor
+     to take the next character right after the previous one
+  */
   E.cx++;
 }
 
 void editorInsertNewLine() {
   if (E.cx == 0) {
-    // if the cursor at the beginning of a line, then 
-    // pressing Enter will create a blank line before
-    // that line
+    /* if the cursor at the beginning of a line, then 
+       pressing Enter will create a blank line before
+       that line
+    */
     editorInsertRow(E.cy, "", 0);
   }
   else {
     erow *row = &E.row[E.cy];
-    // passing the characters of the right of cursor
-    // to the new line
+    /* passing the characters of the right of cursor
+       to the new line
+    */
     editorInsertRow(E.cy+1, &row->chars[E.cx], row->size - E.cx);
     row = &E.row[E.cy];
     row->size = E.cx;
@@ -683,13 +701,15 @@ void editorInsertNewLine() {
 
 void editorDelChar() {
   if (E.cy == E.numrows) {
-    // return immediately if the cursor gets to 
-    // the end of the file
+    /* return immediately if the cursor gets to 
+       the end of the file
+    */
     return;
   }
   if (E.cx == 0 && E.cy == 0) {
-    // return immediately if the cursor is at the 
-    // beginning of the first line
+    /* return immediately if the cursor is at the 
+       beginning of the first line
+    */
     return;
   }
   erow *row = &E.row[E.cy];
@@ -698,8 +718,9 @@ void editorDelChar() {
     E.cx--;
   }
   else {
-    // setting the cursor at the end of the previous row
-    // before appending
+    /* setting the cursor at the end of the previous row
+       before appending
+    */
     E.cx = E.row[E.cy-1].size;
     editorRowAppendString(&E.row[E.cy-1], row->chars, row->size);
     editorDelRow(E.cy);
@@ -741,15 +762,17 @@ void editorOpen(char *filename) {
   char *line = NULL;
   size_t linecap = 0;
   ssize_t len;
-  // getting the line & len from getline() instead of hardcoded
-  // getline returns the length of the line it reads
-  // or -1 when it is the end of the file i.e. no more lines
-  // to read
+  /* getting the line & len from getline() instead of hardcoded
+     getline returns the length of the line it reads
+     or -1 when it is the end of the file i.e. no more lines
+     to read
+  */
   while ((len = getline(&line, &linecap, fp)) != -1) {
     while (len>0 && (line[len-1]=='\n' || line[len-1]=='\r')) {
-      // stripping the newline '\n' & carriage return '\r'
-      // from the line we consider. It's a one liner. so it will
-      // be redundant to include newline or carriage return
+      /* stripping the newline '\n' & carriage return '\r'
+         from the line we consider. It's a one liner. so it will
+         be redundant to include newline or carriage return
+      */
       len--;
     }
     editorInsertRow(E.numrows, line, len);
@@ -770,14 +793,15 @@ void editorSave() {
   }
   int len;
   char *buf = editorRowsToString(&len);
-  // opening E.filename
-  // if it's new, then create a file. that's why O_CREAT used
-  // if it exists, then open the file for read and write.
-  // Thats's why O_RDWR is used.
-  // OCREAT's permission here is  0644.
-  // The 0644 permits that the owner can read and write 
-  // whenever they want
-  // otherwise the user can only read
+  /* opening E.filename
+     if it's new, then create a file. that's why O_CREAT used
+     if it exists, then open the file for read and write.
+     Thats's why O_RDWR is used.
+     OCREAT's permission here is  0644.
+     The 0644 permits that the owner can read and write 
+     whenever they want
+     otherwise the user can only read
+  */
   int fd = open(E.filename, O_RDWR | O_CREAT, 0644);
   if (fd != -1) {
     if (ftruncate(fd, len) != -1) {
@@ -799,8 +823,9 @@ void editorSave() {
 /*** find ***/
 
 void editorFindCallBack(char *query, int key) {
-  // last match is the index in the row that have
-  // searched previous query
+  /* last match is the index in the row that have
+     searched previous query
+  */
   static int last_match = -1;
   // direction 1 means forward search, 
   // diredtion 2 means backward search
@@ -813,11 +838,13 @@ void editorFindCallBack(char *query, int key) {
     free(saved_highlight);
     saved_highlight = NULL;
   }
-  // stopping incremental search if the user pressed 
-  // ENTER or ESC key
+  /* stopping incremental search if the user pressed 
+     ENTER or ESC key
+  */
   if (key == '\r' || key == '\x1b') {
-    // resetting last_match and direction to get ready
-    // for next search operation
+    /* resetting last_match and direction to get ready
+       for next search operation
+    */
     last_match = -1;
     direction = 1;
     return;
@@ -846,15 +873,15 @@ void editorFindCallBack(char *query, int key) {
       current = 0;
     }
     erow *row = &E.row[current];
-    // using strstr() to find if query is a substring of the 
-    // current row
+    // using strstr() to find if query is a substring of the current row
     char *match = strstr(row->render, query);
     if (match) {
       last_match = current;
       E.cy = current;
       E.cx = editorRowRxToCx(row, match-row->render);
-      // the matching line will always be on top by setting 
-      // the rowoff very bottom of the file
+      /* the matching line will always be on top by setting 
+         the rowoff very bottom of the file
+      */
       E.rowoff = E.numrows;
       saved_highlight_line = current;
       saved_highlight = malloc(row->rsize);
@@ -893,8 +920,9 @@ struct abuf {
 };
 
 #define ABUF_INIT {NULL, 0} 
-// initially pointing to the empty buffer
-// worked as a constructor
+/* initially pointing to the empty buffer
+   worked as a constructor
+*/
 
 void abAppend(struct abuf *ab, const char *s, int len) {
   char *new = realloc(ab->b, ab->len + len);
@@ -924,9 +952,10 @@ void editorScroll() {
     E.rowoff = E.cy;
   }
   if (E.cy >= E.rowoff + E.screenrows) {
-    // if the cursor is out of visible window, then
-    // scroll & show the remaining part within the
-    // visible window
+    /* if the cursor is out of visible window, then
+       scroll & show the remaining part within the
+       visible window
+    */
     E.rowoff = E.cy - E.screenrows + 1;
   }
   if (E.rx < E.coloff) {
@@ -934,16 +963,18 @@ void editorScroll() {
     E.coloff = E.rx;
   }
   if (E.rx >= E.coloff + E.screencolumns) {
-    // if the cursor is out of visible window, then
-    // scroll & show the remaining part within the
-    // visible window
+    /* if the cursor is out of visible window, then
+       scroll & show the remaining part within the
+       visible window
+    */
     E.coloff = E.rx - E.screencolumns + 1;
   }
 }
 
 void editorDrawRows(struct abuf *ab) {
-  // putting '~' in front of each row which is not part of the
-  // text being edited
+  /* putting '~' in front of each row which is not part of the
+     text being edited
+  */
   int y;
   for (y=0; y<E.screenrows; y++) {
     int filerow = y+E.rowoff;
@@ -965,8 +996,9 @@ void editorDrawRows(struct abuf *ab) {
 	      padding--;
       }
       while (padding--) {
-	      // next spaces are filled with " " (spaces) 
-        // until the message character starts
+	      /* next spaces are filled with " " (spaces) 
+           until the message character starts
+        */
 	      abAppend(ab, " ", 1);
       }
       // changing length according to the terminal size
@@ -977,12 +1009,12 @@ void editorDrawRows(struct abuf *ab) {
     }
   }
   else {
-    // to show the remaining part of a line beyond the visible 
-    // window
+    // to show the remaining part of a line beyond the visible window
     int len = E.row[filerow].rsize - E.coloff;
     if (len < 0) {
-      // nothing will be displayed on the line after scrolling
-      // if the cursor beyond the end of the line
+      /* nothing will be displayed on the line after scrolling
+         if the cursor beyond the end of the line
+      */
       len = 0;
     }
     if (len > E.screencolumns) {
@@ -1034,8 +1066,9 @@ void editorDrawRows(struct abuf *ab) {
 }
 
 void editorDrawStatusBar (struct abuf *ab) {
-  // making the status bar in inverted colors
-  // "\x1b[7m" switches to inverted color formatting
+  /* making the status bar in inverted colors
+     "\x1b[7m" switches to inverted color formatting
+  */
   abAppend(ab, "\x1b[7m", 4);
   char status[80], rstatus[80];
   int len = snprintf(status, sizeof(status), "%.20s - %d lines %s",
@@ -1051,8 +1084,9 @@ void editorDrawStatusBar (struct abuf *ab) {
   abAppend(ab, status, len);
   // filling the status bar with blank spaces
   while (len < E.screencolumns) {
-    // for printing the current line number at the very
-    // right side of the status bar
+    /* for printing the current line number at the very
+       right side of the status bar
+    */
     if (E.screencolumns - len == rlen) {
       abAppend(ab, rstatus, rlen);
       break;
@@ -1085,23 +1119,27 @@ void editorRefreshScreen() {
   editorScroll();
   struct abuf ab = ABUF_INIT;
   abAppend(&ab, "\x1b[?25l", 6);
-  // [?25l escape sequence used for hiding the cursor
-  // VT100 escape sequences will be followed
+  /* [?25l escape sequence used for hiding the cursor
+     VT100 escape sequences will be followed
+  */
   abAppend(&ab, "\x1b[H", 3);
-  // [H escape sequence for cursor positioning. By default,
-  // at the top left of the editor
+  /* [H escape sequence for cursor positioning. By default,
+     at the top left of the editor
+  */
   editorDrawRows(&ab);
   editorDrawStatusBar(&ab);
   editorDrawMessageBar(&ab);
   char buf[32];
-  // putting the cursor to the previous position within the 
-  // visible window when scroll up
+  /* putting the cursor to the previous position within the 
+     visible window when scroll up
+  */
   snprintf(buf, sizeof(buf), "\x1b[%d;%dH", 
     (E.cy-E.rowoff)+1, (E.rx-E.coloff)+1);
-  // add cursor to the exact position
-  // E.cy+1 & E.cx+1 used to make the 0-based index to
-  // 1-based index.
-  // The terminal uses 1-based index but C uses 0-based index
+  /* add cursor to the exact position
+     E.cy+1 & E.cx+1 used to make the 0-based index to
+     1-based index.
+     The terminal uses 1-based index but C uses 0-based index
+  */
   abAppend(&ab, buf, strlen(buf));
   abAppend(&ab, "\x1b[?25h", 6);
   // [?25h escape sequence used for showing the cursor 
@@ -1110,27 +1148,32 @@ void editorRefreshScreen() {
   abFree(&ab); // freeing the memory used by abuf
 }
 
-// A thorough knowledge of VARIADIC FUNCTION is needed !!!
-// the ... denotes the function can take any number of arguments
+/* A thorough knowledge of VARIADIC FUNCTION is needed !!!
+   the ... denotes the function can take any number of arguments
+*/
 void editorSetStatusMessage (const char *fmt, ...) {
-  // there will be va_start() to denote the start 
-  // of the operation and va_end() to denote the end
-  // of the operation of a value type va_list.
+  /* there will be va_start() to denote the start 
+     of the operation and va_end() to denote the end
+     of the operation of a value type va_list.
+  */
   va_list ap;
-  // the last argument before the ... must be passed
-  // to va_start() to get the address of the next argument.
-  // Between va_start() and va_end(), there will be va_arg()
-  // which will be executed on the type of the next argument.
+  /* the last argument before the ... must be passed
+     to va_start() to get the address of the next argument.
+     Between va_start() and va_end(), there will be va_arg()
+     which will be executed on the type of the next argument.
+  */
   va_start(ap, fmt);
-  // storing the resulting string in E.statusmessage 
-  // Here, vsnprintf() works as a va_arg();
+  /* storing the resulting string in E.statusmessage 
+     Here, vsnprintf() works as a va_arg();
+  */
   vsnprintf(E.statusmessage, sizeof(E.statusmessage), fmt, ap);
   va_end(ap);
   // setting the current time in status message time
   E.statusmessage_time = time(NULL);
-  // current time can be gotten by passing NULL inside the time()
-  // it will calculate the seconds have past since 
-  // January 1, 1970 midnight.
+  /* current time can be gotten by passing NULL inside the time()
+     it will calculate the seconds have past since 
+     January 1, 1970 midnight.
+  */
 }
 
 /*** input ***/
@@ -1151,8 +1194,9 @@ char *editorPrompt(char *prompt, void (*callback)(char *, int)) {
         buffer[--bufferlen] = '\0';
       }
     }
-    // checking for Esc key, if pressed, then the input 
-    // prompt will disappear
+    /* checking for Esc key, if pressed, then the input 
+       prompt will disappear
+    */
     else if (c == '\x1b') {
       editorSetStatusMessage("");
       if (callback) {
@@ -1163,8 +1207,9 @@ char *editorPrompt(char *prompt, void (*callback)(char *, int)) {
     }
     else if (c == '\r') {
       if (bufferlen != 0) {
-        // when input is not empty and Enter key has been
-        // pressed, then the status message gets clear
+        /* when input is not empty and Enter key has been
+           pressed, then the status message gets clear
+        */
         editorSetStatusMessage("");
         if (callback) {
           callback(buffer,c);
@@ -1175,8 +1220,9 @@ char *editorPrompt(char *prompt, void (*callback)(char *, int)) {
     // checking the input is a printable character or not
     else if (!iscntrl(c) && c<128) {
       if (bufferlen == buffersize-1) {
-        // if bufferlen reaches the maximum capacity,
-        // we double the capacity and reallocating it
+        /* if bufferlen reaches the maximum capacity,
+           we double the capacity and reallocating it
+        */
         buffersize *= 2;
         buffer = realloc(buffer, buffersize);
       }
@@ -1198,23 +1244,26 @@ void editorMoveCursor (int key) {
     if (E.cx != 0) {
       E.cx--;
     }
-    // implementing the feature of pressing left arrow to
-    // go to the end of the previous line
-    // and checking it's not the very first line
+    /* implementing the feature of pressing left arrow to
+       go to the end of the previous line
+       and checking it's not the very first line
+    */
     else if (E.cy > 0) {
       E.cy--;
       E.cx = E.row[E.cy].size;
     }
     break;
   case ARROW_RIGHT:
-    // moving the cursor right
-    // checking if the cursor is in left of the last
-    // character or not
+    /* moving the cursor right
+       checking if the cursor is in left of the last
+       character or not
+    */
     if (row && E.cx < row->size) {
       E.cx++;
     }
-    // implementing the feature of pressing right arrow
-    // to go to the beginning of the next line
+    /* implementing the feature of pressing right arrow
+       to go to the beginning of the next line
+    */
     else if (row && E.cx == row->size) {
       E.cy++;
       E.cx = 0;
@@ -1229,8 +1278,9 @@ void editorMoveCursor (int key) {
   case ARROW_DOWN:
     // moving the cursor down
     if (E.cy < E.numrows) {
-      // checking the cursor not going down after the 
-      // very last line of the file
+      /* checking the cursor not going down after the 
+         very last line of the file
+      */
       E.cy++;
     }
     break;
@@ -1238,8 +1288,7 @@ void editorMoveCursor (int key) {
   row = (E.cy >= E.numrows) ? NULL : &E.row[E.cy];
   int rowlen = row ? row->size : 0;
   if (E.cx > rowlen) {
-    // limiting the cursor for not to go beyond the
-    // endline;
+    // limiting the cursor for not to go beyond the endline;
     E.cx = rowlen;
   }
 }
@@ -1297,8 +1346,9 @@ void editorProcessKeypress() {
       editorDelChar();
       break;
 
-      // page up will send the cursor at the top row
-      // page down will send the cursor at the bottom row
+      /* page up will send the cursor at the top row
+         page down will send the cursor at the bottom row
+      */
 
     case PAGE_UP:
     case PAGE_DOWN:
@@ -1338,8 +1388,9 @@ void editorProcessKeypress() {
       editorInsertChar(c);
       break;
   }
-  // by pressing any key other than Ctrl-Q, the quit_times
-  // resets back to 3
+  /* by pressing any key other than Ctrl-Q, the quit_times
+     resets back to 3
+  */
   quit_times = CODIBLE_QUIT_TIMES;
 }
 
@@ -1371,9 +1422,9 @@ int main(int argc, char *argv[])
 {
   enableRawMode();
   initialEditor(); // Initialize all fields of editorConfig
-  // checking if file passed or not. If no file is called from 
-  // command-line, then codible will open blank file just like
-  // Emacs
+  /* Checking if file passed or not. If no file is called from 
+     command-line, then codible will open blank file just like Emacs
+  */
   if (argc >= 2) {
     editorOpen(argv[1]);
   }
