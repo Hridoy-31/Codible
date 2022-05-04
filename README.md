@@ -2,7 +2,7 @@
   <img src="https://github.com/Hridoy-31/Codible/blob/main/Artwork/cover.png" alt="Codible" width="500">
 </h1>
 
-![GitHub all releases](https://img.shields.io/github/downloads/Hridoy-31/codible/total)  ![GitHub last commit](https://img.shields.io/github/last-commit/Hridoy-31/Codible) ![GitHub](https://img.shields.io/github/license/Hridoy-31/codible) ![GitHub code size in bytes](https://img.shields.io/github/languages/code-size/Hridoy-31/codible) ![GitHub repo size](https://img.shields.io/github/repo-size/Hridoy-31/codible)
+![GitHub last commit](https://img.shields.io/github/last-commit/Hridoy-31/Codible) ![GitHub](https://img.shields.io/github/license/Hridoy-31/codible) ![GitHub code size in bytes](https://img.shields.io/github/languages/code-size/Hridoy-31/codible) ![GitHub repo size](https://img.shields.io/github/repo-size/Hridoy-31/codible)
 
 
 Codible is a lightweight terminal based text editor with basic operations. It is heavily inspired from Kilo
